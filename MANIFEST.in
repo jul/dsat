@@ -1,0 +1,7 @@
+recursive-include dsat *.py *txt
+recursive-include docs *rst *py Makefile
+include LICENSE.txt
+include README.rst
+include requirements.txt
+
+

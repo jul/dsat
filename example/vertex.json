@@ -1,0 +1,91 @@
+{ 
+    "debug_integrity": true,
+	"cnx": { 
+		"PUSH_any_orchester" : "tcp://%(ext_ip)s:9576",
+		"PUSH_orchester_cpu" : "tcp://%(ext_ip)s:9577",
+		"PUSH_orchester_cpu" : "ipc://socksher",
+		"PUSH_orchester_ping" : "ipc:///tmp/sock2",
+		"PUSH_orchester_proc" : "ipc:///tmp/sock3",
+
+		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:9558",
+		"PUSH_cpu_rrd" : "tcp://%(ext_ip)s:9559",
+		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:9558",
+		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:9558",
+
+		"PUSH_any_tracker" :  "tcp://%(ext_ip)s:9561",
+		"PUB_tracker_any" :  "tcp://%(ext_ip)s:9560",
+		"SUB_orchester_master" :  "tcp://%(master_ip)s:9563"
+	},
+	"bounce_to" : 
+        { "cpu" : [ {
+            "where" : "localhost",
+            "type" : "cpu"
+            } ],
+        "ping" : [ {
+            "where" : "localhost",
+            "type" : "ping"
+        }],
+
+        "proc" : [ {
+            "where" : "localhost",
+            "type" : "proc"
+        }]
+    } ,
+   
+   "master_ip" : "127.0.0.1",
+    "ext_ip" : "127.0.0.1",
+	"state_keeper": { "backend":
+		{ 
+			"_default_" : { 
+				"uri" : "mongodb://localhost/",
+				"db" : "state_test"
+			},
+			"state": {
+				"col" : "stat_etest"
+			}
+		}
+	},
+	"circus_cfg" : "edge.ini",
+	"polling_time_ms" : 500,
+	"max_retry" : 2,
+	"timeout" : 10,
+	"logging" : { 
+		"version" : 1,
+		"disable_existing_loggers" : true,
+		"formatters": {
+			"verbose": {
+				"format": "%(asctime)s [%(levelname)s] [%(module)s:%(lineno)d]  %(process)d %(message)s"
+			},
+			"simple": {
+				"format": "[%(levelname)s] [%(module)s:l%(lineno)d] %(process)d %(message)s"
+			}
+		},
+		"handlers" : { 
+			"console" : { 
+				"level" : "DEBUG",
+				"class" : "logging.StreamHandler",
+				"formatter" : "verbose"
+			},
+			"syslog" : { 
+				"level" : "DEBUG",
+				"formatter" : "simple",
+				"address" : "/dev/log",
+				"class" : "logging.handlers.SysLogHandler"
+			}
+		},
+		"loggers" : { 
+			"dev" : { 
+				"level" : "DEBUG",
+		"disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			}
+		},
+		"root" : { 
+			"level" : "DEBUG",
+		"disable_existing_loggers" : true,
+			"propagate" : 0,
+			"handlers" : [  "syslog" ]
+		}
+	}
+}

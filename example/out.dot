@@ -1,0 +1,46 @@
+digraph G {
+	graph [labelloc=b, rankdir=LR, labeljust=t, label="DSAT connexion graph", ranksep="0.5", fontsize=14, page="21x21", size="18x18"];
+	node [label="\N"];
+	graph [lp="360,13",
+		bb="0,0,720,480"];
+	cpu_1 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,439", height="0.5"];
+	cpu_2 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,368", height="0.5"];
+	cpu_3 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,314", height="0.5"];
+	csvw [fixedsize=True, width=2, style=filled, fillcolor=lightblue, shape=rectangle, pos="648,234", height="0.5"];
+	ping_1 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,260", height="0.5"];
+	ping_2 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,206", height="0.5"];
+	tracker [fixedsize=True, width=2, style=filled, fillcolor=lightblue, shape=rectangle, pos="208,161", height="0.5"];
+	any [width="0.80556", pos="30,188", height="0.51389"];
+	orchester [fixedsize=True, width=2, style=filled, fillcolor=lightblue, shape=rectangle, pos="208,229", height="0.5"];
+	proc_1 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,152", height="0.5"];
+	proc_2 [fixedsize=True, width=2, style=filled, fillcolor=lightgray, shape=rectangle, pos="428,98", height="0.5"];
+	master [fixedsize=True, width=2, style=filled, fillcolor=lightblue, shape=rectangle, pos="428,44", height="0.5"];
+	rrd [fixedsize=True, width=2, style=filled, fillcolor=lightblue, shape=rectangle, pos="648,398", height="0.5"];
+	cpu_1 -> csvw [arrowhead=normal, label=PUSH, pos="e,638.33,252.11 500.14,432.64 520.51,427.98 541.57,420.13 558,407 571.97,395.83 567.84,386.92 576,371 595.63,332.72 618.87,288.73\
+ 633.53,261.15", lp="538,436"];
+	cpu_2 -> csvw [arrowhead=normal, label=PUSH, pos="e,636.7,252.32 500.19,357.68 519.89,352.78 540.59,345.58 558,335 588.79,316.3 615,283.74 631.06,260.65", lp="538,360"];
+	cpu_3 -> csvw [arrowhead=normal, label=PUSH, pos="e,581.72,252.1 479.64,296 486.57,293.19 493.52,290.16 500,287 508.43,282.89 509.48,279.91 518,276 535,268.19 553.87,261.21 571.84\
+,255.28", lp="538,285"];
+	ping_1 -> csvw [arrowhead=normal, label=PUSH, pos="e,575.89,231.19 484.17,241.96 495.27,239.09 506.92,236.55 518,235 533.31,232.85 549.73,231.78 565.58,231.37", lp="538,244"];
+	ping_2 -> csvw [arrowhead=normal, label=PUSH, pos="e,591.33,215.97 500.13,204.49 519.04,204.96 539.35,206.24 558,209 565.67,210.14 573.61,211.72 581.46,213.54", lp="538,218"];
+	tracker -> any [arrowhead=normal, label=PUB, pos="e,43.801,171.96 139.45,142.96 119.2,140.59 97.301,141.01 78,148 68.263,151.53 59.112,157.98 51.465,164.7", lp="98,157"];
+	orchester -> ping_1 [arrowhead=normal, label=PUSH, pos="e,355.8,249.83 280.04,239.15 301.02,242.11 324.11,245.36 345.68,248.4", lp="318,256"];
+	orchester -> ping_2 [arrowhead=normal, label=PUSH, pos="e,355.72,210.7 280.16,218.15 286.19,217.37 292.19,216.64 298,216 313.32,214.31 329.68,212.81 345.46,211.52", lp="318,225"];
+	proc_1 -> csvw [arrowhead=normal, label=PUSH, pos="e,620.64,215.8 500.29,165.43 519.39,170.01 539.76,175.82 558,183 576.61,190.32 596.07,200.93 612.1,210.57", lp="538,192"];
+	proc_2 -> csvw [arrowhead=normal, label=PUSH, pos="e,632.74,215.72 476.46,116.03 484.34,119 492.4,122.07 500,125 525.87,134.98 534.66,133.03 558,148 583.95,164.64 608.92,189.43 625.95\
+,208.13", lp="538,157"];
+	any -> tracker [arrowhead=normal, label=PUSH, pos="e,135.99,171.92 58.995,183.6 77.269,180.83 101.86,177.1 125.79,173.47", lp="98,189"];
+	orchester -> cpu_1 [arrowhead=normal, label=PUSH, pos="e,396.74,420.83 219.07,247.21 234.78,272.21 265.28,317.84 298,351 320.73,374.03 329.27,376.76 356,395 366.21,401.97 377.51,409.12\
+ 388.07,415.58", lp="318,391"];
+	orchester -> cpu_2 [arrowhead=normal, label=PUSH, pos="e,375.96,349.88 226.96,247.22 253.66,271.92 304.82,315.83 356,341 359.37,342.66 362.87,344.28 366.44,345.85", lp="318,338"];
+	orchester -> cpu_3 [arrowhead=normal, label=PUSH, pos="e,372.59,295.98 246.68,247.05 262.47,254.2 280.98,262.29 298,269 318.91,277.25 342.01,285.51 362.86,292.67", lp="318,292"];
+	orchester -> master [arrowhead=normal, label=SUB, pos="e,375.04,62.149 253.16,210.8 263.26,204.87 273.03,197.34 280,188 301.03,159.84 278.2,140.04 298,111 315.64,85.127 328.24,85.495 \
+356,71 359.11,69.375 362.34,67.799 365.64,66.279", lp="318,120"];
+	orchester -> proc_1 [arrowhead=normal, label=PUSH, pos="e,360.35,170.05 247,210.84 262.67,203.87 281.02,196.13 298,190 314.89,183.9 333.27,178.06 350.74,172.86", lp="318,199"];
+	orchester -> proc_2 [arrowhead=normal, label=PUSH, pos="e,377.34,116.13 248.87,210.87 259.85,204.7 271.13,197.03 280,188 291.7,176.08 286.06,166.68 298,155 318.75,134.71 329.48,136.78 \
+356,125 359.84,123.29 363.83,121.6 367.87,119.94", lp="318,164"];
+	any -> orchester [arrowhead=normal, label=PUSH, pos="e,135.91,215.08 56.557,196.15 63.506,198.17 71.009,200.26 78,202 93.466,205.86 110.06,209.6 126.05,213.01", lp="98,220"];
+	cpu_1 -> rrd [arrowhead=normal, label=PUSH, pos="e,628.35,416.14 480.65,457.01 504.61,462.59 533.11,465.54 558,458 581.17,450.99 603.82,435.82 620.61,422.49", lp="538,471"];
+	cpu_2 -> rrd [arrowhead=normal, label=PUSH, pos="e,575.8,388.15 500.04,377.82 521.02,380.69 544.11,383.83 565.68,386.77", lp="538,394"];
+	cpu_3 -> rrd [arrowhead=normal, label=PUSH, pos="e,634.48,379.78 500.31,306.74 519.6,307.18 540.06,309.88 558,317 586.38,328.27 611.53,352.82 627.98,371.96", lp="538,326"];
+}

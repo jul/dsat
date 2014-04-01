@@ -1,0 +1,8 @@
+anyjson>=0.3.3
+configparser
+cython
+pyzmq>=13.1.0
+Sphinx>=1.2b1
+picomongo
+pymongo
+coverage
