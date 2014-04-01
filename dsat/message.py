@@ -215,6 +215,7 @@ class State(object):
                 )
             )
             self.Backend = ConnectionManager.get_config(r"state")
+                
             if config.get("readonly", False):
                 def disable_save(*a,**kw):
                     raise(Exception("Not implemented in read_only mode"))
@@ -240,18 +241,17 @@ class State(object):
             isinstance(record["job_id"],str)
 
         Record.con = self.Backend
+        if config.get("purge_at_startup") and not config.get("readonly"):
+            Record.remove()
         self.Record = Record
 
-        try:
-            self.Backend.col.create_index(
+        self.Backend.col.create_index(
                 [( 'task_id', ASCENDING),
                     ( 'job_id', ASCENDING) ],
                 name = "integrity_constraint_1",
                 unique = True,
                 drop_dups = True,
             )
-        except Exception as e:
-            raise(e)
         if len(state):
             for r in state:
                 try:

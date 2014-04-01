@@ -183,8 +183,7 @@ def event_listener(CNX, timer_q,  config):
                 finally:
                     if "HAPPY_END" not in [ new["state"], old["state"]]:
                         state_keeper.update(new)
-                    
-                    # TODO RESTABLISH thjat
+
                     re_send_vector(CNX["tracker_out"], new)
 
                 if res is not SENTINEL:
@@ -287,8 +286,7 @@ def event_listener(CNX, timer_q,  config):
     @state_changer("INITING")
     def on_init(state_keeper, old, new):
         new["event"] = "SEND"
-        D("<%r:%r> IN  <%r>" % (new["type"], cnx[new["type"]], cnx))
-        #send_vector([ cnx[new["type"]]], new)
+        send_vector(cnx[new["type"]], new)
 
 
     def on_propagate(state_keeper, old, new):
@@ -345,15 +343,15 @@ def event_listener(CNX, timer_q,  config):
             if 1 == int(new["seq"]) - int(lowest_ooo["seq"] ):
                 return lowest_ooo, new
             
-            next = unordered_msg.get(
+            _next = unordered_msg.get(
                 tuple([ lowest_ooo["job_id"], lowest_ooo["task_id"],
                     str(int(lowest_ooo["seq"])+1)
                 ])
             )
-            if next:
+            if _next:
                 if CONFIG.get("debug_next_in_line"):
                     D("successor in stack")
-                return lowest_ooo, next
+                return lowest_ooo, _next
 
 
         if 1 ==  int( new["seq"] ) - int(old["seq"]):
@@ -385,29 +383,26 @@ def event_listener(CNX, timer_q,  config):
         if abort_me:
             return
 
-        ### values stored in satlive and not in messages needs to be
-        ### regeneratied
-        #new.update( { k :v for k,v in old.items() if k not in new} )
         if "HAPPY_END" == old["state"]:
-            next = False
+            _next = False
         else:
-            old, next = next_in_line(old, new)
+            old, _next = next_in_line(old, new)
 
-        while next:
+        while _next:
             if CONFIG.get("debug_pending_messages"):
-                D("COMPUTING %s => %s" % (old["seq"], next["seq"]))
-            transitions[next["event"]](state_keeper, old, next)
+                D("COMPUTING %s => %s" % (old["seq"], _next["seq"]))
+            transitions[_next["event"]](state_keeper, old, _next)
             unordered_msg.invalidate(
                 tuple([old["job_id"], old["task_id"], old["seq"]])
             )
             if CONFIG.get("debug_pending_messages"):
                 D("Pending messages <%r> " % unordered_msg)
                 pass
-            if "HAPPY_END" == next["state"]:
-                next = False
+            if "HAPPY_END" == _next["state"]:
+                _next = False
             else:
-                state_keeper.update( next )
-                old, next = next_in_line(next, next)
+                state_keeper.update( _next )
+                old, _next = next_in_line(_next, _next)
             
 
     print("Waiting for socket to be read cf 100% CPU zmq bug")
@@ -428,7 +423,7 @@ def event_listener(CNX, timer_q,  config):
             if "INIT" == new["event"]:
                 new["state"] = "INIT"
                 new["retry"] = "0"
-                new["step"] ="satlive"
+                new["step"] ="orchester"
                 new["next"] =  new["type"]
                 #send_vector(cnx[new["type"]], new)
                 #if not(state_keeper.get(new["job_id"],new["task_id"])):

@@ -1,5 +1,5 @@
 digraph G {
-	graph [labelloc=b, rankdir=LR, labeljust=t, label="DSAT connexion graph", ranksep="0.5", fontsize=14, page="21x21", size="18x18"];
+	graph [labelloc=b, rankdir=LR, fontsize=14, labeljust=t, ranksep="0.5", size="18x10", label="DSAT connexion graph"];
 	node [label="\N"];
 	graph [lp="360,13",
 		bb="0,0,720,480"];

@@ -117,8 +117,6 @@ def event_listener(CNX, config):
             if "PROPAGATE" == new["event"]:
                 D("skipping PROPAGATE for %s" % _f(new))
                 continue
-
-            D("***** ")
         except Exception as e:
             log.exception("MON %s" % e)
 

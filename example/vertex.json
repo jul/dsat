@@ -2,20 +2,21 @@
     "debug_integrity": true,
 	"cnx": { 
 		"PUSH_any_orchester" : "tcp://%(ext_ip)s:9576",
-		"PUSH_orchester_cpu" : "tcp://%(ext_ip)s:9577",
 		"PUSH_orchester_cpu" : "ipc://socksher",
 		"PUSH_orchester_ping" : "ipc:///tmp/sock2",
 		"PUSH_orchester_proc" : "ipc:///tmp/sock3",
 
-		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:9558",
 		"PUSH_cpu_rrd" : "tcp://%(ext_ip)s:9559",
-		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:9558",
-		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:9558",
+		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
 
 		"PUSH_any_tracker" :  "tcp://%(ext_ip)s:9561",
-		"PUB_tracker_any" :  "tcp://%(ext_ip)s:9560",
+		"PUSH_any_tracker" :  "ipc://tracker_in",
+		"PUB_tracker_any" :  "ipc://tracker_out",
 		"SUB_orchester_master" :  "tcp://%(master_ip)s:9563"
 	},
+    "csvw_port" : "9558",
 	"bounce_to" : 
         { "cpu" : [ {
             "where" : "localhost",
@@ -38,15 +39,15 @@
 		{ 
 			"_default_" : { 
 				"uri" : "mongodb://localhost/",
-				"db" : "state_test"
+				"db" : "statekeeper"
 			},
 			"state": {
-				"col" : "stat_etest"
+				"col" : "state"
 			}
 		}
 	},
 	"circus_cfg" : "edge.ini",
-	"polling_time_ms" : 500,
+	"polling_time_ms" : 1500,
 	"max_retry" : 2,
 	"timeout" : 10,
 	"logging" : { 
@@ -76,14 +77,14 @@
 		"loggers" : { 
 			"dev" : { 
 				"level" : "DEBUG",
-		"disable_existing_loggers" : true,
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			}
 		},
 		"root" : { 
-			"level" : "DEBUG",
-		"disable_existing_loggers" : true,
+			"level" : "INFO",
+            "disable_existing_loggers" : true,
 			"propagate" : 0,
 			"handlers" : [  "syslog" ]
 		}
