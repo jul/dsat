@@ -1,0 +1,11 @@
+set term x11
+set xdata time
+set timefmt "%s"
+set format x "%d %H:%M:%s"
+set xlabel "Date"
+set datafile separator ","
+plot 'data/ping.csv' using 1:2 with points title "TX" ,'' using 1:3 title "RX" with points
+pause 1
+set grid
+set autoscale keepfix
+reread
