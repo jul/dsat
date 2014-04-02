@@ -20,6 +20,8 @@ def every(x):
         yield y == 0
         y = y - 1 if y>=0 else x-1
 
+
+
 def cpu(cnx, arg):
     cpu_f.seek(0)
     _5,_10,_15 = cpu_f.read().split(" ")[:3]
@@ -27,11 +29,15 @@ def cpu(cnx, arg):
 
 cnt5 = every(5)
 cnt3 = every(3)
+def cpu_clock(ev):
+    sleep(ev['arg']['load'] * 40)
+    return ev
 
 state_wrapper(sys.argv, cpu, bounce_to=["proc", "ping"],
     cond_for=dict(
         proc=lambda ev: cnt5.next(),
         ping = lambda ev: cnt3.next(),
+        cpu = lambda ev: ev('load')
     )
 )
 
