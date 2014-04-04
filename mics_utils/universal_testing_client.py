@@ -17,7 +17,7 @@ from zmq.utils import jsonapi
 
 _to = sys.argv[1]
 _mode = sys.argv[2]
-_stable = sys.argv[3] is not "1"
+_stable = sys.argv[3] is "bind"
 _send = sys.argv[4]
 _what = None if len(sys.argv) <= 5 else sys.argv[5]
 

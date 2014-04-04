@@ -59,37 +59,37 @@ LOCAL_INFO = dict(
 )
 
 CNX = get_connection(CONFIG, LOCAL_INFO)
-now = time()
 def event_listener(CNX, config):
     """Processlet responsible for routing and reacting on status change"""
     D("event listener")
     cnx = CNX
-    out_sign = cnx["_context"].socket(zmq.PUB)
-
-    out_sign.connect(CONFIG["cnx"]["SUB_orchester_master"] %config)
-
     poller = zmq.Poller()
+    out_sign = cnx["_context"].socket(zmq.PUB)
+    out_sign.connect(CONFIG["cnx"]["SUB_orchester_master"] %config)
     other_in = cnx["orchester_in"]
     master_sox = cnx["master"]
-    master_sox.setsockopt_string(zmq.SUBSCRIBE, unicode(LOCAL_INFO["where"]))
-
+    master_sox.setsockopt_string(zmq.SUBSCRIBE,unicode(LOCAL_INFO["where"]))
     poller.register(master_sox, zmq.POLLIN)
     poller.register(other_in, zmq.POLLIN)
     cpt=0
+    now = time()
     while True:
-        if not(cpt%100):
-            print 1.0*cpt/(time() - now)
+        if not(cpt%1000):
+            print "%.1f msg/sec %.2f" % (time(), 1.0*cpt/(time() - now))
+            cpt = 0
+            now = time()
         cpt+=1
-        new= {}
+        new={}
         ready_sox = dict(poller.poll())
         if other_in in ready_sox and ready_sox[other_in] == zmq.POLLIN:
             new = parse_event(other_in)
-            D("RCV from OTHER %s" % _f(new))
+            D("rcv from OTHER %s" % _f(new))
         elif master_sox in ready_sox and ready_sox[master_sox] == zmq.POLLIN:
             new = parse_event(master_sox)
             D("rcv from MASTER %s" % _f(new))
+        if new == {}:
+            continue
         if new["where"] != LOCAL_INFO["where"]:
-            
             log.info("NOT FOR ME Iam %s not %s " % (new["where"], LOCAL_INFO["where"]))
             #D("*****")
             continue
@@ -98,7 +98,6 @@ def event_listener(CNX, config):
             task_id = new["task_id"]
             job_id = new["job_id"]
             if new["event"] in  { "INIT", "BOUNCE"}:
-                sleep(config.get("fix_zmq",.2))
                 re_send_vector(cnx["tracker_out"],new, "ACK", dict( pid = config["pid"])) 
                 new["task_id"] = str(task_id.isdigit() and (int(task_id)+1) or task_id)
                 new["state"] = "do I use that?"
@@ -109,18 +108,16 @@ def event_listener(CNX, config):
                 D("sending to %r" % cnx[new["type"]])
                 send_vector(cnx[new["type"]], new)
                 #log.warning("gup %r %r" % (monitor, new))
-                sleep(CONFIG.get("fix_zmq",.5))
                 re_send_vector(cnx["tracker_out"],new, "SEND", dict( pid = config["pid"])) 
-                log.info("SND on monitor %r" % _f(new))
                 #send_vector(monitor, new)
+            else:
+                log.warning("unknown message caught %r" % _f(new))
 
 
             if "PROPAGATE" == new["event"]:
                 D("skipping PROPAGATE for %s" % _f(new))
         except Exception as e:
             log.exception("MON %s" % e)
-        else:
-            log.warning("unknown message caught %r" % _f(new))
 
 
 

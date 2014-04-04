@@ -1,20 +1,21 @@
 { 
     "debug_integrity": true,
+    "check_delay" : 3,
 	"cnx": { 
+		"SUB_orchester_master" :  "tcp://%(master_ip)s:9563",
 		"PUSH_any_orchester" : "tcp://%(ext_ip)s:9576",
+		"PUSH_any_tracker" :  "ipc://tracker_in",
+		"PUB_tracker_any" :  "ipc://tracker_out",
+
 		"PUSH_orchester_cpu" : "ipc://socksher",
 		"PUSH_orchester_ping" : "ipc:///tmp/sock2",
 		"PUSH_orchester_proc" : "ipc:///tmp/sock3",
 
-		"PUSH_cpu_rrd" : "tcp://%(ext_ip)s:9559",
-		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
 		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
-		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_cpu_rrd" : "ipc://cpu_rrd",
+		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s"
 
-		"PUSH_any_tracker" :  "tcp://%(ext_ip)s:9561",
-		"PUSH_any_tracker" :  "ipc://tracker_in",
-		"PUB_tracker_any" :  "ipc://tracker_out",
-		"SUB_orchester_master" :  "tcp://%(master_ip)s:9563"
 	},
     "csvw_port" : "9558",
 	"bounce_to" : 
@@ -47,7 +48,7 @@
 		}
 	},
 	"circus_cfg" : "edge.ini",
-	"polling_time_ms" : 1500,
+	"polling_time_ms" : 3500,
 	"max_retry" : 2,
 	"timeout" : 10,
 	"logging" : { 
@@ -76,7 +77,31 @@
 		},
 		"loggers" : { 
 			"dev" : { 
-				"level" : "DEBUG",
+				"level" : "WARNING",
+                "disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			},
+			"cpu" : { 
+				"level" : "INFO",
+                "disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			},
+			"csvw" : { 
+				"level" : "INFO",
+                "disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			},
+			"orchester" : { 
+				"level" : "INFO",
+                "disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			},
+			"tracker" : { 
+				"level" : "WARNING",
                 "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
