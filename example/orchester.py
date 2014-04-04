@@ -18,10 +18,9 @@ from zmq.utils import jsonapi
 import json
 from time import gmtime
 from calendar import timegm
-from dsat.message import send_event, State, send_vector, parse_event,\
+from dsat.message import send_vector, parse_event,\
         incr_seq, decr_seq, re_send_vector, incr_task_id
-from dsat.state import ProcTracker, TimerProxy, get_connection, _f, \
-        construct_info
+from dsat.state import get_connection, _f, construct_info
 
 from circus.client import CircusClient
 from circus.commands import get_commands
@@ -44,11 +43,12 @@ if not len(sys.argv) >= 1:
 CONFIG, LOCAL_INFO, ID = construct_info(sys.argv, "orchester")
 
 dictConfig(CONFIG.get("logging",{}))
-log = logging.getLogger("dev")
+
 CONFIG.update(LOCAL_INFO)
-D = log.warning
 import __main__ as main
 
+log = logging.getLogger("orchester")
+D = log.debug
 D("Started %r" % main.__file__)
 
 LOCAL_INFO = dict(
@@ -59,66 +59,68 @@ LOCAL_INFO = dict(
 )
 
 CNX = get_connection(CONFIG, LOCAL_INFO)
-
+now = time()
 def event_listener(CNX, config):
     """Processlet responsible for routing and reacting on status change"""
     D("event listener")
     cnx = CNX
-    monitor = cnx["tracker_out"]
     out_sign = cnx["_context"].socket(zmq.PUB)
-    print( cnx)
 
     out_sign.connect(CONFIG["cnx"]["SUB_orchester_master"] %config)
-    state_keeper = State(config["state_keeper"])
-    make_task_id = lambda : str(time())
 
-    # pyzmq aysnc startup
-    print("Waiting for socket to be read cf 100% CPU zmq bug")
-    sleep(1)
     poller = zmq.Poller()
     other_in = cnx["orchester_in"]
     master_sox = cnx["master"]
-    master_sox.setsockopt_string(zmq.SUBSCRIBE, u"")# unicode(LOCAL_INFO["where"]))
+    master_sox.setsockopt_string(zmq.SUBSCRIBE, unicode(LOCAL_INFO["where"]))
 
     poller.register(master_sox, zmq.POLLIN)
     poller.register(other_in, zmq.POLLIN)
+    cpt=0
     while True:
+        if not(cpt%100):
+            print 1.0*cpt/(time() - now)
+        cpt+=1
+        new= {}
         ready_sox = dict(poller.poll())
-        D('main wait')
-        new={}
         if other_in in ready_sox and ready_sox[other_in] == zmq.POLLIN:
             new = parse_event(other_in)
-            #D("rcv from OTHER %s" % _f(new))
+            D("RCV from OTHER %s" % _f(new))
         elif master_sox in ready_sox and ready_sox[master_sox] == zmq.POLLIN:
             new = parse_event(master_sox)
-            #D("rcv from MASTER %s" % _f(new))
-        
+            D("rcv from MASTER %s" % _f(new))
         if new["where"] != LOCAL_INFO["where"]:
             
-            #D("NOT FOR ME Iam %s not %s " % (new["where"], LOCAL_INFO["where"]))
+            log.info("NOT FOR ME Iam %s not %s " % (new["where"], LOCAL_INFO["where"]))
             #D("*****")
             continue
         try:
         # only one message at a time can be treated not even sure I need it
             task_id = new["task_id"]
             job_id = new["job_id"]
-            if "INIT" == new["event"]:
+            if new["event"] in  { "INIT", "BOUNCE"}:
+                sleep(config.get("fix_zmq",.2))
+                re_send_vector(cnx["tracker_out"],new, "ACK", dict( pid = config["pid"])) 
                 new["task_id"] = str(task_id.isdigit() and (int(task_id)+1) or task_id)
-                new["state"] = "INIT"
+                new["state"] = "do I use that?"
                 new["retry"] = "0"
                 new["step"] ="orchester"
                 new["next"] = new["type"]
                 D("initing to %s" % _f(new))
+                D("sending to %r" % cnx[new["type"]])
                 send_vector(cnx[new["type"]], new)
-                send_vector(monitor, new)
+                #log.warning("gup %r %r" % (monitor, new))
+                sleep(CONFIG.get("fix_zmq",.5))
+                re_send_vector(cnx["tracker_out"],new, "SEND", dict( pid = config["pid"])) 
+                log.info("SND on monitor %r" % _f(new))
+                #send_vector(monitor, new)
 
-                continue
 
             if "PROPAGATE" == new["event"]:
                 D("skipping PROPAGATE for %s" % _f(new))
-                continue
         except Exception as e:
             log.exception("MON %s" % e)
+        else:
+            log.warning("unknown message caught %r" % _f(new))
 
 
 
