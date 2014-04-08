@@ -97,16 +97,18 @@ def event_listener(CNX, config):
         # only one message at a time can be treated not even sure I need it
             task_id = new["task_id"]
             job_id = new["job_id"]
+            D("RCV%r"%_f(new))
             if new["event"] in  { "INIT", "BOUNCE"}:
                 re_send_vector(cnx["tracker_out"],new, "ACK", dict( pid = config["pid"])) 
                 new["task_id"] = str(task_id.isdigit() and (int(task_id)+1) or task_id)
                 new["state"] = "do I use that?"
                 new["retry"] = "0"
                 new["step"] ="orchester"
+                new["event"] = "INIT"
                 new["next"] = new["type"]
                 D("initing to %s" % _f(new))
                 D("sending to %r" % cnx[new["type"]])
-                send_vector(cnx[new["type"]], new)
+                send_vector(cnx[new["next"]], new)
                 #log.warning("gup %r %r" % (monitor, new))
                 re_send_vector(cnx["tracker_out"],new, "SEND", dict( pid = config["pid"])) 
                 #send_vector(monitor, new)

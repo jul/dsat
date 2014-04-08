@@ -20,7 +20,7 @@ while True:
     re_zero = lambda d: [ i and i or 1 for i in d ]
 
     ax1 = plt.gca()
-    DTS=min(len(date),  200)
+    DTS=min(len(date),  100)
     ax1.xaxis.set_major_formatter(xfmt)
     ax1.plot(date[-DTS+1:],
             np.diff(data["x"][-DTS:])/re_zero(np.diff(data["time"][-DTS:])) , 'r.', label ="x" )

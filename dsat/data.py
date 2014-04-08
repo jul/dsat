@@ -19,16 +19,12 @@ def create_rrd_if(cfg, _type, **kw):
                 for k in set(s_dct.keys()) | set(cfg["_default"].keys())
         }) for s_dct in cfg[_type]["source"]]
     rra = [
-    "RRA:MIN:0:3600:57600",
-    "RRA:MIN:0:300:57600",
-    "RRA:MIN:0:70:57600",
-    "RRA:AVERAGE:0:3600:57600",
-    "RRA:AVERAGE:0:300:57600",
-    "RRA:AVERAGE:0:70:57600",
-    "RRA:AVERAGE:0:10:57600",
-    "RRA:MAX:0:3600:57600",
-    "RRA:MAX:0:300:57600",
-    "RRA:MAX:0:70:57600",
+    "RRA:MIN:0.5:10:57600",
+    "RRA:AVERAGE:0.5:1:57600",
+    "RRA:AVERAGE:0.5:10:57600",
+    "RRA:AVERAGE:0.5:100:57600",
+    "RRA:LAST:0:10:57600",
+    "RRA:MAX:0:10:57600",
     ]
     archive = RRD(fn,rra=rra, ds=ds, **cfg.get("_rrd_option",{}))
     return archive.create()

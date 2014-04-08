@@ -466,14 +466,13 @@ def state_wrapper(argv, func_or_name, **kw):
                             bevent = event
                             bevent["seq"] = 0
                             bevent["job_id"] =int(LOCAL_INFO["pid"] )
-                            bevent["step"] = "orchester"
-                            bevent["next"] = channel
+                            bevent["type"] = channel
                             bevent["where"] = _here
                             bevent["state"]="INIT"
                             bevent["arg"]["_new_type"] = channel
                             bevent["arg"]["_from_where"] = event["where"]
                             assert(isinstance(channel,str) or isinstance(channel, unicode))
-                            send_vector(current_bouncer, bevent, "INIT",
+                            send_vector(current_bouncer, bevent, "BOUNCE",
                                 { "next" : channel})
                             re_send_vector(status, bevent, "BOUNCE",
                                 { "next" : channel})

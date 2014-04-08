@@ -14,9 +14,9 @@ import logging
 
 cpu_f = open("/proc/loadavg")
 def every(x):
-    y =randint(0,x-1) 
+    y =x 
     while True: 
-        yield y == 0
+        yield not y
         y = y - 1 if y>=0 else x-1
 
 
@@ -26,13 +26,13 @@ def cpu(cnx, arg):
     _5,_10,_15 = cpu_f.read().split(" ")[:3]
     return { "data" : [ _5,_10,_15], "load" : _5, "5min" : _5, "10min" : _10, "15min" :  _15 }
 
-cntproc = every(2000)
-cntping = every(2000)
-cntcsv = every(4000)
-cntrrd = every(4000)
+cntproc = every(60)
+cntping = every(30)
+cntcsv = every(30)
+cntrrd = every(30)
 def cpu_clock(ev):
     #try:
-    #    sleep(float(ev['arg']['load']) * .001)
+    sleep(float(ev['arg']['load']) * .05)
     #except:
     #    pass
     return True

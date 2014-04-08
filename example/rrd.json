@@ -1,7 +1,7 @@
 { 
     "_rrd_option" : {
         "start" : 0,
-        "step":6
+        "step":12
     },
     "_path" : "./data",
     "_default" : {

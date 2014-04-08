@@ -8,8 +8,8 @@
 		"PUB_tracker_any" :  "ipc://tracker_out",
 
 		"PUSH_orchester_cpu" : "ipc://socksher",
-		"PUSH_orchester_ping" : "ipc:///tmp/sock2",
-		"PUSH_orchester_proc" : "ipc:///tmp/sock3",
+		"PUSH_orchester_ping" : "tcp://%(ext_ip)s:9566",
+		"PUSH_orchester_proc" : "ipc://_sock_proc",
 
 		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
 		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
@@ -64,7 +64,7 @@
 		},
 		"handlers" : { 
 			"console" : { 
-				"level" : "DEBUG",
+				"level" : "WARNING",
 				"class" : "logging.StreamHandler",
 				"formatter" : "verbose"
 			},
@@ -83,7 +83,7 @@
 				"handlers" : ["syslog" ]
 			},
 			"cpu" : { 
-				"level" : "INFO",
+				"level" : "WARNING",
                 "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
@@ -95,7 +95,13 @@
 				"handlers" : ["syslog" ]
 			},
 			"orchester" : { 
-				"level" : "INFO",
+				"level" : "WARNING",
+                "disable_existing_loggers" : true,
+				"propagate" : 0,
+				"handlers" : ["syslog" ]
+			},
+			"rrd" : { 
+				"level" : "DEBUG",
                 "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
@@ -108,10 +114,9 @@
 			}
 		},
 		"root" : { 
-			"level" : "INFO",
             "disable_existing_loggers" : true,
 			"propagate" : 0,
-			"handlers" : [  "syslog" ]
+			"handlers" : [  "syslog", "console" ]
 		}
 	}
 }
