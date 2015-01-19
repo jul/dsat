@@ -24,7 +24,7 @@ long_desc = fcontent('README.rst')
 setup(
         name = "dsat", 
         version = dsat.__version__,
-        description = "distributed system for adaptative worker/process",
+        description = fcontent("README.rst"),
         packages = find_packages(),
         package_dir = dict( dsat = "dsat",),
         install_requires = map(
@@ -46,7 +46,7 @@ setup(
         test_suite="tests",
 )
 
-if 'install' in sys.argv:
+if 'install' in sys.argv or 'develop' in sys.argv:
     test()
     print long_desc
 
