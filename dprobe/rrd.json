@@ -1,0 +1,20 @@
+{ 
+    "_rrd_option" : {
+        "start" : 0,
+        "step":12
+    },
+    "_path" : "./data",
+    "_default" : {
+        "heartbeat" : 6,
+        "dsType" : "GAUGE"
+    },
+    "cpu" : { 
+        "source": [{
+            "dsName" : "5min"
+        },{
+            "dsName" : "10min"
+        },{
+            "dsName" : "15min"
+       }]
+}
+}
