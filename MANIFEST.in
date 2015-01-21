@@ -1,5 +1,6 @@
 recursive-include dsat *.py *txt
 recursive-include docs *rst *py Makefile
+recursive-include dprobe *txt *ini *json *py
 include LICENSE.txt
 include README.rst
 include requirements.txt

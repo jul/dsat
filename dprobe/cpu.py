@@ -1,15 +1,12 @@
 
 import sys
-from os import path, getpid
 from dsat.state import state_wrapper
 from dsat.linux_mtime import m_time as time
 from random import randint
 from time import sleep
-from dsat.state import get_connection, construct_info
-import sched
+from dsat.state import construct_info
 
 from time import sleep
-import logging
 
 
 cpu_f = open("/proc/loadavg")
@@ -26,13 +23,14 @@ def cpu(cnx, arg):
     _5,_10,_15 = cpu_f.read().split(" ")[:3]
     return { "data" : [ _5,_10,_15], "load" : _5, "5min" : _5, "10min" : _10, "15min" :  _15 }
 
-cntproc = every(60)
-cntping = every(30)
-cntcsv = every(30)
-cntrrd = every(10)
+cntproc = every(2800)
+cntping = every(2800)
+cntcsv = every(2800)
+cntrrd = every(2800)
+
 def cpu_clock(ev):
     #try:
-    sleep(float(ev['arg']['load']) * .01)
+   #sleep(float(ev['arg']['load']) * .0000)
     #except:
     #    pass
     return True

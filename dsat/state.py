@@ -201,9 +201,7 @@ class ProcTracker(object):
             timeout = CONFIG.get("circus_ctl_timeout", 10),
         )
         self._config = CONFIG
-        state_config = CONFIG.get("state_keeper")
-        state_config["readonly"] = True
-
+        
 
     def _circus_process_alive(self,proc):
         return self._circus_cmd("numprocesses", proc)
@@ -481,8 +479,9 @@ def state_wrapper(argv, func_or_name, **kw):
                             bounce_index[channel] %= len(bounce_cfg[channel])
                 ok = True
             except Exception as e:
+                log.error("@%s %s" % (here,e))
+                log.exception(e)
                 sleep(CONFIG.get("sleep_after_retry", 2))
-                log.exception("Processing failed @%s %s" % (here,e))
                 event["arg"].update({
                     "_retry" : retry,
                     "_error_type" : str(type(e)) ,

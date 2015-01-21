@@ -9,7 +9,7 @@ def create_rrd_if(cfg, _type, **kw):
     cfg.update(kw)
     _path = cfg["_path"]
     if not path.exists(_path):
-        raise IOError("Non existing path %(path)s" % _cfg)
+        raise IOError("Non existing path %(path)s" % cfg)
     fn = path.join(_path, _type.endswith(".rrd") and _type or "%s.rrd" % _type)
     if path.isfile(fn):
         #should check  RRD magic number if I was paranoid

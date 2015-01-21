@@ -1,0 +1,21 @@
+--- ../control2/py2/lib/python2.7/site-packages/pyrrd/rrd.py	2014-06-02 18:07:05.000000000 -0400
++++ ../dsat/py2/lib/python2.7/site-packages/pyrrd/rrd.py	2015-01-20 09:42:25.032562742 -0500
+@@ -1,5 +1,8 @@
+ import re
+ from datetime import datetime
++### linux only
++from dsat.linux_mtime import m_time as time
++
+ 
+ from pyrrd import mapper
+ from pyrrd import util
+@@ -163,8 +166,7 @@
+         """
+         values = ':'.join([unicode(x) for x in values])
+         self.values.append((timeOrData, values))
+-        self.lastupdate = float(unicode(timeOrData).split(":")[0])
+-
++        self.lastupdate = timeOrData.startswith("N") and time() or float(timeOrData.split(":")[0])
+     # for backwards compatibility
+     bufferValues = bufferValue
+ 

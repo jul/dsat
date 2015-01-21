@@ -156,23 +156,22 @@ def event_listener(CNX, config):
     print("Waiting for socket to be read cf 100% CPU zmq bug")
     sleep(1)
     local_in_sox = cnx["tracker_in"]
-    print LOCAL_INFO
-    CLOCK_M = int(config.get("tracker_clock_every", 1000))
+    CLOCK_M = int(config.get("tracker_clock_every", 100))
     ignore = 0
     check_delay = config.get("check_delay", 3) * 2
     now = time()
     while True:
         new = parse_event(local_in_sox)
-        ignore += 1
-        ignore %= CLOCK_M
-        if not ignore:
-            log.info("RCV %s" % _f(new))
+        if ignore == 0:
+            log.debug("RCV %s" % _f(new))
             if abs(time() - now) > check_delay:
                 q_madd( watchdog_q, busy_per_stage)
                 log.info("zombie count %r" % busy_per_stage)
                 log.info("MPS %r" % message_per_stage)
                 log.info("EPS %r" % error_per_stage)
                 now = time()
+        ignore += 1
+        ignore %= CLOCK_M
                 
          
         if new["where"] != LOCAL_INFO["where"]:
@@ -181,7 +180,6 @@ def event_listener(CNX, config):
         try:
 
             message_per_stage += { new["step"] : 1 } 
-        # only one message at a time can be treated not even sure I need it
             task_id = new["task_id"]
             job_id = new["job_id"]
 
@@ -193,14 +191,11 @@ def event_listener(CNX, config):
             if action[new["event"]]:
                 action[new["event"]](new)
         except Exception as e:
-            D("MON new is %r" % new)
-            log.exception("MON %s" % e)
+            D("MON EXC for %r is %s" % (new, e))
+            log.exception( e)
 
 
 
-
-
-### rule of thumbs every queue should be used twice and only twice
 
 event_listener(CNX, CONFIG )
 

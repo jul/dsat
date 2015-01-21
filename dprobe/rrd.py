@@ -16,12 +16,14 @@ for rrd_db in cfg.keys():
             except IOError:
                 pass
             finally:
-                rrd_l[rrd_db] = lambda : open_rrd(cfg, rrd_db)
-    print rrd_db
+                rrd_l[rrd_db] = open_rrd(cfg, rrd_db)
+
+
 last_seen=dict()
+
 def rrd(cnx, ev):
     if last_seen.get(ev["_type"], ev["_when"] ) != ev["_when"]:
-        write_rrd(open_rrd(cfg, ev["_type"]), cfg, ev["_type"], ev)
+        write_rrd(rrd_l[ev["_type"]], cfg, ev["_type"], ev)
     last_seen[ev["_type"]] = ev["_when"]
 
 state_wrapper(sys.argv, rrd)

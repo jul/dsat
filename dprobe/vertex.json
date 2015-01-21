@@ -18,35 +18,23 @@
 
 	},
     "csvw_port" : "9558",
-	"bounce_to" : 
+    "bounce_to" : "Refiring messages from key to other stuff",
+    "bounce_to" : 
         { "cpu" : [ {
             "where" : "localhost",
             "type" : "cpu"
             } ],
-        "ping" : [ {
-            "where" : "localhost",
-            "type" : "ping"
-        }],
-
-        "proc" : [ {
-            "where" : "localhost",
-            "type" : "proc"
-        }]
-    } ,
-   
-   "master_ip" : "127.0.0.1",
+            "ping" : [ {
+                "where" : "localhost",
+                "type" : "ping"
+            } ],
+            "proc" : [ {
+                "where" : "localhost",
+                "type" : "proc"
+            }]
+        } ,
+    "master_ip" : "127.0.0.1",
     "ext_ip" : "127.0.0.1",
-	"state_keeper": { "backend":
-		{ 
-			"_default_" : { 
-				"uri" : "mongodb://localhost/",
-				"db" : "statekeeper"
-			},
-			"state": {
-				"col" : "state"
-			}
-		}
-	},
 	"circus_cfg" : "edge.ini",
 	"polling_time_ms" : 3500,
 	"max_retry" : 2,
@@ -69,7 +57,7 @@
 				"formatter" : "verbose"
 			},
 			"syslog" : { 
-				"level" : "DEBUG",
+				"level" : "INFO",
 				"formatter" : "simple",
 				"address" : "/dev/log",
 				"class" : "logging.handlers.SysLogHandler"
@@ -78,25 +66,25 @@
 		"loggers" : { 
 			"dev" : { 
 				"level" : "WARNING",
-                "disable_existing_loggers" : true,
+                "disable_existing_loggers" : false,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"cpu" : { 
 				"level" : "WARNING",
-                "disable_existing_loggers" : true,
+                "disable_existing_loggers" : false,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"csvw" : { 
 				"level" : "INFO",
-                "disable_existing_loggers" : true,
+                "disable_existing_loggers" : false,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"orchester" : { 
 				"level" : "WARNING",
-                "disable_existing_loggers" : true,
+                "disable_existing_loggers" : false,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
@@ -107,10 +95,10 @@
 				"handlers" : ["syslog" ]
 			},
 			"tracker" : { 
-				"level" : "WARNING",
-                "disable_existing_loggers" : true,
+				"level" : "DEBUG",
+                "disable_existing_loggers" : false,
 				"propagate" : 0,
-				"handlers" : ["syslog" ]
+				"handlers" : ["syslog", "console" ]
 			}
 		},
 		"root" : { 

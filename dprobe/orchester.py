@@ -59,6 +59,7 @@ LOCAL_INFO = dict(
 )
 
 CNX = get_connection(CONFIG, LOCAL_INFO)
+
 def event_listener(CNX, config):
     """Processlet responsible for routing and reacting on status change"""
     D("event listener")
@@ -121,11 +122,6 @@ def event_listener(CNX, config):
         except Exception as e:
             log.exception("MON %s" % e)
 
-
-
-
-
-### rule of thumbs every queue should be used twice and only twice
 
 event_listener(CNX, CONFIG )
 

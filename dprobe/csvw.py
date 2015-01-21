@@ -3,9 +3,10 @@ from dsat.state import state_wrapper
 
 if not len(sys.argv) >= 1:
     raise( Exception("Arg"))
+
 import csv
 from os import path
-import logging
+
 
 def csvw(cnx, ev):
     from json import dumps
@@ -15,5 +16,5 @@ def csvw(cnx, ev):
 
 
 
-state_wrapper(sys.argv,csvw)
+state_wrapper(sys.argv, csvw)
 

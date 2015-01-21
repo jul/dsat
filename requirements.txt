@@ -1,3 +1,6 @@
+circus
+gevent
+circus-web
 anyjson>=0.3.3
 configparser
 cython
