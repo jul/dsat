@@ -8,8 +8,8 @@ import csv
 from os import path
 
 
-def csvw(cnx, ev):
-    from json import dumps
+def csvw(cnx, ev, serialization = "simplejson"):
+    print ev
     with open(path.join("data", "%(_type)s.csv" % ev ), "a") as f:
         c_write = csv.writer(f)
         c_write.writerow([ int(float(ev["_when"])) ] + ev["data"]  )

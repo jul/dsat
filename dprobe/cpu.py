@@ -10,11 +10,13 @@ from time import sleep
 
 
 cpu_f = open("/proc/loadavg")
+
 def every(x):
-    y =x 
+    y = x 
     while True: 
         yield not y
-        y = y - 1 if y>=0 else x-1
+        y += 1
+        y = y%x
 
 
 
@@ -30,7 +32,10 @@ cntrrd = every(2800)
 
 def cpu_clock(ev):
     #try:
-   #sleep(float(ev['arg']['load']) * .0000)
+    cpu_f.seek(0)
+    _5,_10,_15 = cpu_f.read().split(" ")[:3]
+    sleep(.5)
+#    sleep(float(_5) * .001)
     #except:
     #    pass
     return True

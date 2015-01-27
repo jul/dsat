@@ -26,13 +26,13 @@ import signal
 import socket
 
 from threading import Timer
-import zmq.green as zmq
-#import zmq
+#import zmq.green as zmq
+import zmq
 from zmq.utils import jsonapi
 import json
 from time import gmtime
 from calendar import timegm
-from .message import send_vector, parse_event, re_send_vector
+from .message import send_vector, fast_parse_vector, re_send_vector,  incr_task_id
 from circus.client import CircusClient
 from circus.commands import get_commands
 from contextlib import contextmanager
@@ -45,131 +45,371 @@ from circus.util import DEFAULT_ENDPOINT_SUB, DEFAULT_ENDPOINT_DEALER
 
 #pyzmq is string agnostic, so we ensure we use bytes
 
-SENTINEL = object
+_SENTINEL = object
 
-__all__ = [ "_f", "get_connection", "ProcTracker", "TimerProxy" ]
+__all__ = [ "_f", "get_connection", "ProcTracker", "TimerProxy", "Connector" ]
 
 context = zmq.Context()
 _f = lambda d: ":".join([ str(d.get(k,"NaV")) for k in [ "pid", "seq", "step","next",
-        "event","job_id", "task_id","retry"] ])
+        "serialization", "event","retry"] ])
 
-def get_connection(CONFIG, LOCAL_INFO):
-    """list of available connections to neighborhoods
-    given the actual position.
 
-    it uses the CONFIG to get the connections topology
-    and LOCAL_INFO to get the actual step
+identity = lambda a:a
 
-    Not meant to be used as is
+def serializer_for(module_name, primitive):
+    assert module_name not in { None, "None" }
+    if module_name  == "str":
+        return str
+    
+    ser_module = __import__(module_name, globals(), locals(), [primitive, ], -1)
+    return getattr(ser_module, primitive)
 
-    Parsing circus.ini to get the ZMQ topology.
+def handle_function_call(self,  payload, vector, **kw):
+    """calls function with everything and handle magically the
+    recasting of messages"""
+    payload = serializer_for(
+                                vector["serialization"], "loads"
+                            )(
+                                vector["arg"]
+                            ) 
+    res = self.func(self , payload , vector)
+    res = serializer_for(
+            vector["serialization"], "dumps"
+        )(
+            res
+        )
+    vector["arg"] = res
+    assert(isinstance(vector["arg"], str))
+    
+    
+    
+class Connector(object):
     """
-    cnx_list = defaultdict(dict,{})
-    cnx_list["_context"] = context
-    cnx_list["next"] =defaultdict(dict,{})
-    cnx_list["previous"] = set()
-    CONFIG.update(LOCAL_INFO)
-    here = CONFIG["step"]
-    print("building cnx list for step %(step)s" % CONFIG)
-    interesting_link = [
-        link for link in CONFIG["cnx"] if ( "any" not in link and \
-            here in link.split("_") )
-    ]
-    rec_scheme=dict(
-        PUB="SUB", SUB="PUB",
-        PUSH="PULL", PULL="PUSH")
-    cfg = ConfigParser()
-    # circus prefix for the process name
-    prefix_proc= "watcher:"
-    offset_in_st = len(prefix_proc)
-    assert(path.exists(CONFIG.get("circus_cfg", "circus.ini")))
-    cfg.read(CONFIG.get("circus_cfg", "circus.ini"))
-    already_bound = dict()
-    # singleton in circus means fixed points
-    singleton = set([ proc[offset_in_st:] for proc in cfg \
-            if proc.startswith(prefix_proc) and cfg[proc].get("singleton") ])
-    for link in interesting_link:
-        ## conf is PUSH_pusher_puller
-        scheme , src, dst = link.split("_")
-        if "tracker" in {src, dst}:
-            continue 
-        #orchestrer is the init point of this circus setup
-        if src == here or ( "orchester" == here and "orchester" == src ):
-            scheme = getattr(zmq,scheme)
-            step = dst
-            is_next = True
-            cnx = cnx_list[step] = context.socket(scheme)
-            if not cnx_list.get("next", {}).get(dst):
-                cnx_list["next"][dst] = cnx
-        else:
-            step = src
-            scheme= rec_scheme[scheme]
-            scheme = getattr(zmq,scheme)
-            ## dont call your step next ... think of reserved keyword ...
-            cnx = cnx_list[step] = context.socket(scheme)
-            is_next = False
-            print "previous is %r" % cnx
-            cnx_list["previous"] |= { cnx }
-            # singleton bind to their end, moving parts connect for outgoing links
-            # opposite for incoming link
-            # EXCEPT master to orchester
-        address = CONFIG["cnx"][link] % CONFIG
+    latin co-nexion
+        putting nodes (edges) in relationship (by the mean of vertices)
+    
+    Class connecting a process to its neighbours 
+        also provides the access to facility such as:
+            * local config
+            * preconfigured logger
+            * serialization handling
+            * out of band signaling (orcherster)
+            * process management (tracker)
+            * access to a point of presence for external satellite
+                (it may be orcherster or master, I forgot)
+            * conditionnal vector muxing on output
+            
+        """
+    @staticmethod
+    def construct_info_from_cli( func_or_name):
+        ### TODO : argv[0] =~ here why bother?
+        argv = sys.argv
+        CONFIG = {}
+        with open(argv[1]) as conf:
+            CONFIG = json.load(conf)
+            with open(argv[2]) as local_conf:
+                CONFIG.update(json.load(local_conf))
+        func = func_or_name
+        here = func.__name__ if hasattr(func_or_name, "__name__") else func_or_name
+        ## a little glitch in my code
+        ID = ( len(argv) >=4 ) and argv[3] or "0"
+        CONFIG["logging"].update({
+            "formatters": {
+                "verbose": {
+                    "format": "%(asctime)s [%(levelname)s] [" +here+":"+ID+ \
+                            ":%(module)s:%(lineno)d] %(process)d %(message)s"
+                },
+                "simple": {
+                    "format": "[%(levelname)s] ["+here+":"+ID+\
+                            ":%(module)s:l%(lineno)d] %(process)d %(message)s"
+                }
+            }
+        })
+        host_name = socket.gethostname()
+        LOCAL_INFO = dict(
+            where = CONFIG.get("where",
+                socket.gethostbyaddr(host_name)[0]
+            ),
+            wid = ID,
+            id=ID,
+            step = here,
+            ip= socket.gethostbyname(socket.gethostname()),
+            ext_ip = socket.gethostbyname(socket.gethostname()),
+            pid = os.getpid(),
+        )
+        
+        if "where" in CONFIG:
+            assert(LOCAL_INFO["where"] == CONFIG["where"])
+        return here, CONFIG, LOCAL_INFO, ID
 
-        if ( "orchester" == src and "orchester"==here and "master"!= dst) or \
-            "orchester" != here and here in singleton:
-            if address not in already_bound:
-                # believe me you want this to troubleshoot
-                cnx.bind(address)
-                print("##[%s] %s // binding %r / %r on %r / %r" % (step, here, scheme, step,address, cnx))
-                already_bound[address] = step
+        
+    def __init__(self, func_or_name, **option):
+        """
+        * the name of the function should be the name of the circus watcher 
+          AND the name of the step. That is how I join the information from 
+          the edges and the vertices.
+
+        * edges are named either by their true name, or give me the
+        function to wrap and I will find it
+        * vertex: It is the file containing connection matrices and local_info
+        * edge (circus.ini) describing how each edges are launched
+            * if singleton is seen, I consider it is a router, else a worker
+        * option :
+            * is_router = True: 
+                no need to parse vector it is a ventilator (cf ZMQ guide)
+            * serialization: name of a module that has dumps/loads with wich 
+            to freeze / thaw data
+                * nothing: vector is a string
+                * json : advice use simplejson it is way faster
+                * pickle/marshall: ahahha (use at your own risks)
+                    nothing guaranties that all workers are using the same
+                    version of python on a distributed system .... and 
+                    marshall format varies per python version
+                * dirty (to reimplement): a way to pass lambda function by capturing
+                    the code and directly transmit it. Has a safeguard with py version
+                * local_info: a dict to amend global_info (like DB settings, passwords
+                THAT SHOULD NOT BE STORED IN CLEAR TEXT)
+            * local_info: optional update to the local config
+            * bounce_to BLACK MAGIC 
+                not documented because I intend to make $$$ with it
+        func is the function wrapped:
+            * it must be in the PUSH_step1_step2 connexions
+            * it must have in the circus [watcher:....] section
+        the name of the watcher should be the same as the func name and the cnx
+        
+
+                
+            #TODO find all the option.get("...") in this page and document
+        """
+        self.here, self.vertex, self.local_info, self.worker_id = \
+            Connector.construct_info_from_cli(func_or_name)
+        self.func = func_or_name
+        
+        self.option = option
+        self.local_info.update(option.get("local_info", {}))
+        self.config = self.vertex
+        self.is_router = option.get("is_router")
+        self.cnx =  Connector.get_connection(self.vertex , self.local_info)
+        dictConfig(self.vertex["logging"])
+        self.log = logging.getLogger(
+            self.here in self.vertex["logging"]["loggers"] and self.here or "dev"
+        )
+        self.log.info("CNX : %r", self.cnx)
+        self.local_info['next'] = self.cnx.get('next') and "unset" or "TERMINUS"
+        
+        self.log.info(("wrapping %(here)s" % self.__dict__) + "[%(wid)s]" % self.local_info )
+        
+    
+    def turbine(self):
+        """Verb: turbiner : slang french for working hard
+            turbine == imperative format
+            n.f: a stuff that spins like hell in an engineering system
+        Does basically the wait and process
+
+        """
+        cnx = self.cnx
+        if "where" in self.vertex:
+            assert(self.local_info["where"] == self.vertex["where"])
+        
+        assert self.is_router or not(isinstance(self.func, str)), \
+            "Ouch wont work"
+        
+        
+        def nop(*a): pass
+        
+        D = self.config.get("debug", True) and self.log.debug or nop
+
+        D("waiting vector %(here)s" % self.__dict__)
+        bouncer = bounce_cfg = bouncer_index = None
+        bouncer_dict = dict()
+
+        previous_cnx = self.cnx["previous"]
+        assert(len( previous_cnx ) == 1)
+        assert(isinstance(previous_cnx, set))
+        previous_cnx = previous_cnx.pop()
+        next_cnx = False
+        if "END" != self.local_info['next']:
+            next_cnx = cnx.get("next")
+
+        status  = self.cnx["tracker_out"]
+
+        while True:
+            
+            vector = fast_parse_vector(previous_cnx)
+            D("RECV %r" % vector)
+
+            
+            #D("treating %s" % _f(vector))
+            task_id = vector["task_id"]
+            probe_res = {}
+
+            vector.update(self.local_info)
+            re_send_vector(status, vector, "ACK")
+            
+            if not next_cnx:
+                vector["next"] = "TERMINUS"
+            
+            max_retry = self.option.get("max_retry", 1) if next_cnx else 1
+            retry = 1
+            ok =  False
+            while not ok and retry <= max_retry:
+                try:
+                    if not self.is_router:
+                        retry +=1 
+                        re_send_vector(status, vector, "BEGIN")
+                        D("BEGIN")
+                        handle_function_call(self, vector["arg"], vector)
+                        assert(isinstance(vector["arg"], str))
+                        re_send_vector(status, vector, "END")
+
+                    D("cnx['next'] is %r " % self.cnx.get("next", "not set")) 
+                    is_last = True
+                    if is_last:
+                        re_send_vector(status, vector, "HAPPY_END")
+                        for step, to_send in  cnx.get('next', {}).items():
+                            D("next step is %r " % step)
+                            assert(isinstance(step,str) or isinstance(step, unicode))
+                            vector["next"] =  step
+                            send_vector(to_send, vector ,"SEND")
+                            re_send_vector(status, vector ,"SEND")
+                            is_last = False
+                            D("sent to step %r" %step) 
+                        
+                        if is_last:
+                            re_send_vector(status, vector, "HAPPY_END")
+                        ok = True
+                except Exception as e:
+                    self.log.error("@%s %s" % (self.here,e))
+                    self.log.exception(e)
+                    sleep(self.vertex.get("sleep_after_retry", 2))
+                    re_send_vector(status, vector,"ERROR")
+
+
+    @staticmethod
+    def get_connection(CONFIG, LOCAL_INFO):
+        """list of available connections to neighborhoods
+        given the actual position.
+
+        it uses the CONFIG to get the connections topology
+        and LOCAL_INFO to get the actual step
+
+        Not meant to be used as is
+
+        Parsing circus.ini to get the ZMQ topology.
+        """
+        cnx_list = defaultdict(dict,{})
+        cnx_list["_context"] = context
+        cnx_list["next"] =defaultdict(dict,{})
+        cnx_list["previous"] = set()
+        CONFIG.update(LOCAL_INFO)
+        here = CONFIG["step"]
+        print("building cnx list for step %(step)s" % CONFIG)
+        interesting_link = [
+            link for link in CONFIG["cnx"] if ( "any" not in link and \
+                here in link.split("_") )
+        ]
+        rec_scheme=dict(
+            PUB="SUB", SUB="PUB",
+            PUSH="PULL", PULL="PUSH")
+        cfg = ConfigParser()
+        # circus prefix for the process name
+        prefix_proc= "watcher:"
+        offset_in_st = len(prefix_proc)
+        assert(path.exists(CONFIG.get("circus_cfg", "circus.ini")))
+        cfg.read(CONFIG.get("circus_cfg", "circus.ini"))
+        already_bound = dict()
+        # singleton in circus means fixed points
+        singleton = set([ proc[offset_in_st:] for proc in cfg \
+                if proc.startswith(prefix_proc) and cfg[proc].get("singleton") ])
+        for link in interesting_link:
+            ## conf is PUSH_pusher_puller
+            scheme , src, dst = link.split("_")
+            if "tracker" in {src, dst}:
+                continue 
+            #orchestrer is the init point of this circus setup
+            if src == here or ( "orchester" == here and "orchester" == src ):
+                scheme = getattr(zmq,scheme)
+                step = dst
+                is_next = True
+                cnx = cnx_list[step] = context.socket(scheme)
+                if not cnx_list.get("next", {}).get(dst):
+                    cnx_list["next"][dst] = cnx
             else:
-                cnx = cnx_list[step] = cnx_list[already_bound[address]] 
-            is_singleton = True
-        else:
-            print("%s CONNECT on %s;%s because single" % (here, link, address))
-            if address not in already_bound: 
-                cnx.connect(address)
-                print("[%s] cnxing %r / %r on %r/%r" % (step, scheme, step,address, cnx))
-                already_bound[address] = step
+                step = src
+                scheme= rec_scheme[scheme]
+                scheme = getattr(zmq,scheme)
+                ## dont call your step next ... think of reserved keyword ...
+                cnx = cnx_list[step] = context.socket(scheme)
+                is_next = False
+                print "previous is %r" % cnx
+                cnx_list["previous"] |= { cnx }
+                # singleton bind to their end, moving parts connect for outgoing links
+                # opposite for incoming link
+                # EXCEPT master to orchester
+            address = CONFIG["cnx"][link] % CONFIG
+
+            if ( "orchester" == src and "orchester"==here and "master"!= dst) or \
+                "orchester" != here and here in singleton:
+                if address not in already_bound:
+                    # believe me you want this to troubleshoot
+                    cnx.bind(address)
+                    print("[%s] %s // binding %r / %r on %r / %r" % (step, here, scheme, step,address, cnx))
+                    already_bound[address] = step
+                else:
+                    cnx = cnx_list[step] = cnx_list[already_bound[address]] 
+                is_singleton = True
             else:
-                cnx = cnx_list[step] = cnx_list[already_bound[address]]
-            is_singleton = False
-        if not is_next:
-            cnx_list["previous"] = {  cnx, } 
-    if "orchester" == here:
-        cnx = context.socket(zmq.PULL)
-        cnx.bind(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
-        cnx_list["orchester_in"] = cnx
-        print "[%s] BIND with  on o_in w PULL %s // %r" % (
-            here, CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG, cnx)
+                print("[%s] CONNECT on %s;%s because single" % (here, link, address))
+                if address not in already_bound: 
+                    cnx.connect(address)
+                    print("[%s] cnxing %r / %r on %r/%r" % (step, scheme, step,address, cnx))
+                    already_bound[address] = step
+                else:
+                    cnx = cnx_list[step] = cnx_list[already_bound[address]]
+                is_singleton = False
+            if not is_next:
+                cnx_list["previous"] = {  cnx, } 
+        if "orchester" == here:
+            cnx = context.socket(zmq.PULL)
+            cnx.bind(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
+            cnx_list["orchester_in"] = cnx
+            print "[%s] BIND with  on o_in w PULL %s // %r" % (
+                here, CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG, cnx)
 
-    else:
-        cnx = context.socket(zmq.PUSH)
-        cnx.connect(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
-        cnx_list["orchester_out"] = cnx
-        print "[%s] orchester CNX with  on o_in w PUSH %s" % (
-            here,  CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
-    if "tracker" == here:
-        cnx = context.socket(zmq.PULL)
-        cnx.bind(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
-        cnx_list["tracker_in"] = cnx
+        else:
+            cnx = context.socket(zmq.PUSH)
+            cnx.connect(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
+            cnx_list["orchester_out"] = cnx
+            print "[%s] orchester CNX with  on o_in w PUSH %s" % (
+                here,  CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
+        if "tracker" == here:
+            cnx = context.socket(zmq.PULL)
+            cnx.bind(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
+            cnx_list["tracker_in"] = cnx
 
-        cnx = context.socket(zmq.PUB)
-        cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
-        cnx_list["tracker_out"] = cnx
-    else:
-        cnx = context.socket(zmq.PUSH)
-        cnx.connect(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
-        cnx_list["tracker_out"] = cnx
-        #cnx = cnx_list["tracker_in"] = context.socket(zmq.SUB)
-        #cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
-        # tracker is the process dedicated to get the statuses.  
-        print "[%s] tracker in is %s // %r " % (here, CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG, cnx)
-    if not len(cnx_list.get("next",{}).keys()):
-        del(cnx_list["next"])
-    return dict(cnx_list)
+            cnx = context.socket(zmq.PUB)
+            cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
+            cnx_list["tracker_out"] = cnx
+        else:
+            cnx = context.socket(zmq.PUSH)
+            cnx.connect(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
+            cnx_list["tracker_out"] = cnx
+            #cnx = cnx_list["tracker_in"] = context.socket(zmq.SUB)
+            #cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
+            # tracker is the process dedicated to get the statuses.  
+            print "[%s] tracker in is %s // %r " % (here, CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG, cnx)
+        if not len(cnx_list.get("next",{}).keys()):
+            del(cnx_list["next"])
+        return dict(cnx_list)
 
+#compatibility with dsat 0.5.itworksforme
+get_connection = Connector.get_connection
     # will be set to def() pass one day, this is my creative way of setting debug levels
+
+#compatibility with dsat 0.5.itworksforme
+def construct_info(ignored, func_or_name):
+    return Connector.construct_info_from_cli(func_or_name)[1:]
+
 D = logging.warning
 
 class ProcTracker(object):
@@ -195,7 +435,7 @@ class ProcTracker(object):
         self._alive = { i[offset_in_st:] : int(cfg[i]["numprocesses"]) for i in cfg
             if i.startswith(prefix_proc) and not cfg[i].get("singleton") 
         }
-
+        D(cfg["watcher:rrd"].get("singleton"))
         ProcTracker.circus = CircusClient(
             endpoint = cfg["circus"].get("endpoint", DEFAULT_ENDPOINT_DEALER),
             timeout = CONFIG.get("circus_ctl_timeout", 10),
@@ -218,8 +458,8 @@ class ProcTracker(object):
             self._circus_cmd("incr", process)
         except Exception as e:
             self._alive[process] -= 1
-            #D("ARG")
-            #logging.exception(e)
+                        #D("ARG")
+            logging.exception(e)
 
 
     def circus_decr(self, process): 
@@ -231,7 +471,7 @@ class ProcTracker(object):
             self._circus_cmd("decr", process)
         except Exception as e:
             self._alive[process] += 1
-            D("ARG")
+            
             logging.exception(e)
 
     def _circus_cmd(self, cmd, process):
@@ -250,244 +490,22 @@ class ProcTracker(object):
         The more I look at it, the more I think it could be a function
         """
         for process, working in busy_per_stage.items():
-            nb_running = self._circus_process_alive(process)
-            low_precaution_margin =  self._config.get("minimal_worker_limit",1)
-            high_precaution_margin =  self._config.get("minimal_worker_limit",3)
+            if process in self._alive:
+                nb_running = self._circus_process_alive(process)
+                low_precaution_margin =  self._config.get("minimal_worker_limit",1)
+                high_precaution_margin =  self._config.get("minimal_worker_limit",3)
+                if nb_running - working < low_precaution_margin:
+                    self.circus_incr(process)
+                    D("%s incr used(%d) available (%d) in [%d, %d]" % (
+                    process, working , nb_running, low_precaution_margin,
+                    high_precaution_margin))
 
-            D("%s working %d vs available %d in [ %d, %d]" % (
-                process, working , nb_running, low_precaution_margin,
-                high_precaution_margin)
-            )
-            if nb_running - working < low_precaution_margin:
-                self.circus_incr(process)
-            if nb_running - working > high_precaution_margin:
-                self.circus_decr(process)
+                if nb_running - working > high_precaution_margin:
+                    D("%s NOT DECREASING used(%d) available (%d) in [%d, %d]" % (
+                    process, working , nb_running, low_precaution_margin,
+                    high_precaution_margin))
 
-
-def router(argv, name, **kw):
-    """ argv are command line arguments  expecting the following ; 
-
-    * global configuration
-    * local_configuration
-    * if exists the worker id
-
-    func is the function wrapped:
-    * it must be in the PUSH_step1_step2 connexions
-    * it must have in the circus [watcher:....] section
-    the name of the watcher should be the same as the func name and the cnx
-    """
-    kw['is_router'] = True
-    state_wrapper(argv, name, **kw)
-
-def construct_info(argv, here):
-    CONFIG = {}
-    with open(argv[1]) as conf:
-        CONFIG = json.load(conf)
-        with open(argv[2]) as local_conf:
-            CONFIG.update(json.load(local_conf))
-
-    ID = ( len(argv) >=4 ) and argv[3] or "0"
-    CONFIG["logging"].update({
-        "formatters": {
-            "verbose": {
-                "format": "%(asctime)s [%(levelname)s] [" +here+":"+ID+ \
-                        ":%(module)s:%(lineno)d] %(process)d %(message)s"
-            },
-            "simple": {
-                "format": "[%(levelname)s] ["+here+":"+ID+\
-                        ":%(module)s:l%(lineno)d] %(process)d %(message)s"
-            }
-        }
-    })
-    host_name = socket.gethostname()
-    LOCAL_INFO = dict(
-        where = CONFIG.get("where",
-            socket.gethostbyaddr(host_name)[0]
-        ),
-        wid = ID,
-        id=ID,
-        step = here,
-        ip= socket.gethostbyname(socket.gethostname()),
-        ext_ip = socket.gethostbyname(socket.gethostname()),
-        pid = os.getpid(),
-    )
-    if "where" in CONFIG:
-        assert(LOCAL_INFO["where"] == CONFIG["where"])
-    return CONFIG, LOCAL_INFO, ID
-
-def state_wrapper(argv, func_or_name, **kw):
-    """ argv are command line arguments  expecting the following ; 
-
-    * global configuration
-    * local_configuration
-    * if exists the worker id
-
-    func is the function wrapped:
-    * it must be in the PUSH_step1_step2 connexions
-    * it must have in the circus [watcher:....] section
-    the name of the watcher should be the same as the func name and the cnx
-    """
-
-    
-    func = func_or_name
-    here = func.__name__ if hasattr(func_or_name, "__name__") else func_or_name
-    print("wrapping %r" % here)
-    is_router = kw.get("is_router")
-
-    ## Gzzz I hate this bleow
-    
-    CONFIG, LOCAL_INFO, ID = construct_info(argv, here)
-    if "where" in CONFIG:
-        assert(LOCAL_INFO["were"] == CONFIG["where"])
-
-    dictConfig(CONFIG["logging"])
-    log = logging.getLogger(
-        here in CONFIG["logging"]["loggers"] and here or "dev"
-    )
-
-    def nop(*a): pass
-    D = CONFIG.get("debug", True) and ( 
-        lambda msg: log.debug("W:%s %s" % (ID, msg))) or nop
-    D = log.debug
-
-    _SENTINTEL = object()
-    cnx = get_connection(CONFIG, LOCAL_INFO)
-    LOCAL_INFO['next'] = cnx.get('next') and "unset" or "TERMINUS"
-    
-    if "where" in CONFIG:
-        assert(LOCAL_INFO["where"] == CONFIG["where"])
-
-    bouncer = bounce_cfg = bouncer_index = None
-    bouncer_dict = dict()
-    if kw.get("bounce_to"):
-        bouncer = True
-        bounce_cfg = CONFIG["bounce_to"]
-        bouncer_list = [k for k in  bounce_cfg.keys() if k in kw["bounce_to"]]
-        D("boucner %r" % kw["bounce_to"])
-        bounce_index=dict()
-        already_opened = dict()
-        for type_on_orchester in bouncer_list:
-            bouncer_dict[type_on_orchester] = [ ]
-            for cfg in CONFIG["bounce_to"][type_on_orchester]:
-                bounce_sox_address = \
-                    CONFIG["cnx"]["PUSH_any_orchester"] % \
-                        dict( ext_ip = socket.gethostbyname(cfg['where']),
-                    )
-                bouncer_sox = already_opened.get(bounce_sox_address)
-
-                if not bouncer_sox:
-                    scheme = zmq.PUSH
-                    bouncer_sox = context.socket(scheme)
-                    bouncer_sox.connect(bounce_sox_address)
-                bouncer_dict[type_on_orchester] += [ bouncer_sox ]
-
-                bounce_index[type_on_orchester] = 0
-        del(already_opened) 
-    #from pprint import PrettyPrinter as PP
-    #P = PP(indent=4).pprint
-    #P(dict(cnx))
-    previous_cnx = cnx["previous"]
-    assert(len( previous_cnx ) == 1)
-    assert(isinstance(previous_cnx, set))
-    previous_cnx = previous_cnx.pop()
-    next_cnx = False
-    if "END" != LOCAL_INFO['next']:
-        next_cnx = cnx.get("next")
-
-    status  = cnx["tracker_out"]
-
-    D("starting %s"%here)
-
-    while True:
-        #print previous_cnx
-        #print previous_cnx
-        event = parse_event(previous_cnx)
-        D("RECV %r" % event)
-        assert(isinstance(event["arg"], dict))
-        #D("treating %s" % _f(event))
-        task_id = event["task_id"]
-        job_id = event["job_id"]
-        probe_res = {}
-
-        event.update(LOCAL_INFO)
-        re_send_vector(status, event, "ACK")
-        if not next_cnx:
-            event["next"] = "TERMINUS"
-        max_retry = CONFIG.get("max_retry", 1) if next_cnx else 1
-        retry = 1
-        ok =  False
-        while not ok and retry <= max_retry:
-            try:
-                if not is_router:
-                    retry +=1 
-                    re_send_vector(status, event,"BEGIN")
-                    D("BEGIN")
-                    event["arg"].update( { ( "_%s" % k) :v for \
-                         k,v in event.items() if "arg" != k } )
-                    probe_res = func(cnx,event["arg"])
-                    re_send_vector(status, event, "END")
-                    event["arg"] = isinstance(probe_res, dict) and probe_res or {}
-
-                    event["arg"]["_retry"] = retry
-                
-                D("cnx['next'] is %r " % cnx.get("next", "not set")) 
-                is_last = True
-                for step, to_send in  cnx.get('next', {}).items():
-                    D("step is %r " % step)
-                    assert(isinstance(step,str) or isinstance(step, unicode))
-                    if kw.get(
-                            "cond_for", dict()
-                        ).get(
-                            step,lambda ev:True)(event):
-                        event["next"] =  step
-                        send_vector(to_send, event ,"SEND")
-                        re_send_vector(status, event ,"SEND")
-                        is_last = False
-                        D("sent to step %r" %step) 
-                    else: 
-                        D("not sent to step %r" %step) 
-                if is_last:
-                    re_send_vector(status, event, "HAPPY_END")
-                if bouncer:
-                    cond = lambda ev:True
-                    for channel in bouncer_dict:
-                        if kw.get("cond_for"):
-                            cond = kw["cond_for"].get(channel, cond)
-                        if cond(event):
-                            D("bouncing on channel %r" % channel)
-                            current_bouncer = bouncer_dict[channel][\
-                                bounce_index[channel]
-                            ]
-                            D("current bouncer %r" %current_bouncer)
-                            current_cfg = bounce_cfg[channel][bounce_index[channel]]
-                            _here = current_cfg["where"]
-                            bevent = event
-                            bevent["seq"] = 0
-                            bevent["job_id"] =int(LOCAL_INFO["pid"] )
-                            bevent["type"] = channel
-                            bevent["where"] = _here
-                            bevent["state"]="INIT"
-                            bevent["arg"]["_new_type"] = channel
-                            bevent["arg"]["_from_where"] = event["where"]
-                            assert(isinstance(channel,str) or isinstance(channel, unicode))
-                            send_vector(current_bouncer, bevent, "BOUNCE",
-                                { "next" : channel})
-                            re_send_vector(status, bevent, "BOUNCE",
-                                { "next" : channel})
-                            D("bounced  %s" % _f(bevent))
-                            bounce_index[channel] += 1
-                            bounce_index[channel] %= len(bounce_cfg[channel])
-                ok = True
-            except Exception as e:
-                log.error("@%s %s" % (here,e))
-                log.exception(e)
-                sleep(CONFIG.get("sleep_after_retry", 2))
-                event["arg"].update({
-                    "_retry" : retry,
-                    "_error_type" : str(type(e)) ,
-                    "_status": str(e)
-                })
-                re_send_vector(status, event,"ERROR")
+            #    self.circus_decr(process)
 
 
 

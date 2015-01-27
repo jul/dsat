@@ -32,8 +32,8 @@ from repoze.lru import ExpiringLRUCache as expiringCache
 from circus.util import DEFAULT_ENDPOINT_SUB, DEFAULT_ENDPOINT_DEALER
 
 #pyzmq is string agnostic, so we ensure we use bytes
-loads = jsonapi.loads
-dumps = jsonapi.dumps
+from simplejson import loads, dumps
+
 SENTINEL = object
 #### let's 
 #time_keeper = scheduler(time, sleep)

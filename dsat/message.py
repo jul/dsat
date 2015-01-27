@@ -7,17 +7,17 @@ from os import path, makedirs
 import shutil
 import logging
 from collections import defaultdict, MutableMapping
-#from json import loads, dumps, dump
 from types import StringType
-from zmq.utils.jsonapi import dumps
-from json import loads
+from simplejson import dumps
 from time import sleep, time
 from exceptions import KeyError
 
 """Function and class related to process control and messaging"""
 
 
-__all__ = [ "incr_task_id", "_filter_dict", "parse_event", "send_vector", "send_event",  "incr_seq" ]
+__all__ = [ "parse_event", "send_vector", 
+    "send_event", "re_send_vector",  "incr_seq", "decr_seq", "fast_parse_event",
+]
 
 
 _SENTINEL = object()
@@ -26,12 +26,34 @@ _SENTINEL = object()
 def _filter_dict(a_dict):
     return { str(k):w for k,w in a_dict.items() if not k.startswith("_") }
 
+"""
+step: where the event has been processed
+where: which machine/localization the event comes from
+wid: worker id
+pid; process id
+next: next step
+
+"""
+
 WHERE_FORMAT =  "{where}:{step}:{wid}:{pid}:{next}"
-WHAT_FORMAT = "{type}:{job_id}:{task_id}:{event}:{seq}"
+"""
+### TODO: DONT CODE A broken crypto
+### we will resort on system (intra unix domain socket + chmod) for ensuring
+### the actual impermeability of the local satelite. 
+emitter: a string for identifying the emitter.
+
+type: the channel through which the event should be sent (routing)
+task_id: something to be able to distinguish tasks
+event: the state of the last message (FSM)
+seq : incr by one from init to happy end
+
+"""
+WHAT_FORMAT = "{emitter}:{type}:{task_id}:{event}:{seq}"
 
 def incr_task_id(vector):
-    vector["task_id"]= str(( int(vector["task_id"])+1 ))
-    
+    task_id = vector["task_id"]
+    vector["task_id"]= str(task_id.isdigit() and (int(task_id)+1) or task_id)
+
 def decr_seq(vector):
     vector["seq"]= str(( int(vector["seq"])-1 ))
 
@@ -39,47 +61,74 @@ def incr_seq(vector):
     vector["seq"]= str(( int(vector["seq"])+1 ))
 
 
-def parse_event(zmq_socket):
+def fast_parse_event(zmq_socket):
     """Takes a well configure socket and returns the state.
+        # MESSAGE FORMAT:
+        {where}:{step}:{wid}:{pid}:{next}\0{type}:{task_id}:{event}:{seq}\0serialization\0payload
     
     The returned vector contains:
-        * job_id = the name of the measurement campaign
-        * task_id = the special unique_id of this measure
+        * task_id = something I intend to use in the future to put a series of CSV 
+            NEXT values for auto routing from source
         * where = on which server
         * step = the worker's circus name that is actually suppose to consume
         * next the next step to send (info)
         * wid: circus worker ID
         * seq: message sequence
-        * arg: a dict with the arguments for the stage
+        * arg: the unserialized arguments
         * pid
+        * serialization: the format in which arg was serialized
         * event the event that is sent
 
     """
     null_joined_string = zmq_socket.recv()
     try:
-        where, step, when, arg = null_joined_string.split("\x00")
-        ### I like to play with stuff
-        _type, job_id, task_id, event, seq = step.split(":")
-        where, step, wid, pid, _next = where.split(":")
+        # MESSAGE FORMAT:
+        """
+        {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{task_id}:{event}:{seq}\0serialization\0payload
+        """
+        where, envelope, serialization, payload = null_joined_string.split("\x00")
+        
+        emitter, _type, task_id, event, seq = envelope.split(":")
+        location, step, wid, pid, _next = where.split(":")
+
     except Exception as e:
         raise Exception("null_joined_string (%r) parse fail reason :%r" % (null_joined_string, e))
     return dict(
-            job_id = job_id,
             type = _type,
             task_id = task_id,
-            when = when,
-            where = where,
+            emitter = emitter,
             step = step,
+            where = location,
             event = event,
             seq = seq,
             wid = wid,
-            arg = loads(arg),
+            arg = payload,
             next = _next,
+            serialization = str(serialization),
             pid = pid,
         )
 
-def send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
+identity = lambda a: a
+
+
+
+def parse_event(zmq_socket):
+    """
+        Commodity variant if you need to access the args sent in the message
+    """
+    to_return = fast_parse_event(zmq_socket)
+    to_return["arg"] = serializer_for(to_return)[0](to_return["arg"])
+    
+    return to_return
+
+parse_vector = parse_event
+fast_parse_vector = fast_parse_event
+
+
+def send_vector(zmq_socket, vector, event = _SENTINEL, update=_SENTINEL):
     incr_seq(vector)
+
+    
     re_send_vector(zmq_socket, vector, event, update)
 
 def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
@@ -93,21 +142,21 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     if update set it updates arg
     """
     assert(isinstance(vector, dict))
-    assert(isinstance(vector["arg"], dict))
     if event is not _SENTINEL:
         vector["event"] = event
     if update is not _SENTINEL:
         vector.update(update)
     try:
-        when = str(float(timegm(gmtime())))
         what = WHAT_FORMAT.format(**vector)
-        arg = dumps(vector['arg'])
         where = WHERE_FORMAT.format(**vector)
-        zmq_socket.send("\x00".join([ where, what ,when, arg ]))
+        vector["serialization"] = str(vector["serialization"])
+        zmq_socket.send("\x00".join([ where, what , vector["serialization"], vector["arg"]]))
+
     except KeyError as k:
         raise( KeyError("malformed vector %r :<%r>" % (vector,k)))
     except Exception as e:
-        logging.exception(e)
+        logging.error("MSG is "  + ",".join(map(repr,[ where, what , vector["serialization"], vector["arg"]])))
+        raise(e)
 
 
 

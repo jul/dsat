@@ -1,0 +1,101 @@
+{ 
+    "debug_integrity": true,
+    "name" : "jul_work",
+    "debug" : true,
+    "check_delay" : 10,
+	"cnx": { 
+		"SUB_orchester_master" :  "tcp://%(master_ip)s:9563",
+		"PUSH_any_orchester" : "tcp://%(ext_ip)s:9576",
+		"PUSH_any_tracker" :  "ipc://tracker_in",
+		"PUB_tracker_any" :  "ipc://tracker_out",
+
+		"PUSH_orchester_cpu" : "ipc://socksher",
+        "PUSH_orchester_clock" : "ipc://_tic_tac",
+        "PUSH_orchester_ping" : "tcp://%(ext_ip)s:9566",
+        "PUSH_orchester_proc" : "ipc://_sock_proc",
+        
+
+		"PUSH_ping_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_cpu_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s",
+		"PUSH_cpu_rrd" : "ipc://cpu_rrd",
+		"PUSH_proc_csvw" : "tcp://%(ext_ip)s:%(csvw_port)s"
+
+	},
+    "csvw_port" : "9558",
+    
+    "master_ip" : "127.0.0.1",
+    "ext_ip" : "127.0.0.1",
+	"circus_cfg" : "edge.ini",
+	"polling_time_ms" : 3500,
+	"max_retry" : 2,
+	"timeout" : 10,
+	"format_for" : {
+        "cpu" : "simplejson",
+        "orchester" : "simplejson",
+        "proc" : "simplejson",
+        "ping" : "str",
+        "rrd" : "simplejson",
+        "csvw" : "simplejson",
+        "any" : "str",
+        "master" : "simplejson"
+	},
+	"logging" : { 
+		"version" : 1,
+		"disable_existing_loggers" : true,
+		"formatters": {
+			"verbose": {
+				"format": "%(asctime)s [%(levelname)s] [%(module)s:%(lineno)d]  %(process)d %(message)s"
+			},
+			"simple": {
+				"format": "[%(levelname)s] [%(module)s:l%(lineno)d] %(process)d %(message)s"
+			}
+		},
+		"handlers" : { 
+			"console" : { 
+				"level" : "DEBUG",
+				"class" : "logging.StreamHandler",
+				"formatter" : "verbose"
+			},
+			"syslog" : { 
+				"level" : "DEBUG",
+				"formatter" : "simple",
+				"address" : "/dev/log",
+				"class" : "logging.handlers.SysLogHandler"
+			}
+		},
+		"loggers" : { 
+			"cpu" : { 
+                "level" : "INFO",
+                "handlers" : ["syslog" ]
+            },"dev" : { 
+                "level" : "WARNING",
+                "handlers" : ["syslog" ]
+            },
+			"csvw" : { 
+				"level" : "WARNING",
+				"handlers" : ["syslog" ]
+			},
+			"orchester" : { 
+				"level" : "INFO",
+				"handlers" : ["syslog"  ]
+			},
+			"rrd" : { 
+				"level" : "WARNING",
+				"handlers" : ["syslog" ]
+			},
+			"tracker" : { 
+                "level" : "INFO",
+                "handlers" : ["syslog"  ]
+            },"ping" : { 
+                "level" : "WARNING",
+                "handlers" : ["syslog"  ]
+            }
+		},
+		"root" : { 
+            "disable_existing_loggers" : true,
+			"propagate" : 0,
+			"level": "WARNING",
+			"handlers" : [  "syslog", "console" ]
+		}
+	}
+}

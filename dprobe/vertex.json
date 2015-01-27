@@ -64,39 +64,33 @@
 			}
 		},
 		"loggers" : { 
-			"dev" : { 
-				"level" : "WARNING",
-                "disable_existing_loggers" : false,
-				"propagate" : 0,
-				"handlers" : ["syslog" ]
-			},
 			"cpu" : { 
-				"level" : "WARNING",
-                "disable_existing_loggers" : false,
+				"level" : "DEBUG",
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"csvw" : { 
-				"level" : "INFO",
-                "disable_existing_loggers" : false,
+				"level" : "DEBUG",
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"orchester" : { 
-				"level" : "WARNING",
-                "disable_existing_loggers" : false,
+				"level" : "DEBUG",
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"rrd" : { 
 				"level" : "WARNING",
-                "disable_existing_loggers" : false,
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog" ]
 			},
 			"tracker" : { 
 				"level" : "DEBUG",
-                "disable_existing_loggers" : false,
+                "disable_existing_loggers" : true,
 				"propagate" : 0,
 				"handlers" : ["syslog", "console" ]
 			}
@@ -104,6 +98,7 @@
 		"root" : { 
             "disable_existing_loggers" : true,
 			"propagate" : 0,
+			"level": "DEBUG",
 			"handlers" : [  "syslog", "console" ]
 		}
 	}

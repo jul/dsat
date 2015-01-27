@@ -197,6 +197,7 @@ class RRD(mapper.RRDMapper):
             if debug:
                 print data
             if not dryRun:
+
                 self.backend.update(debug=debug, *data)
                 self.values = []
 

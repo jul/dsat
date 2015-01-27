@@ -21,7 +21,7 @@ for rrd_db in cfg.keys():
 
 last_seen=dict()
 
-def rrd(cnx, ev):
+def rrd(cnx, ev, serialization = "simplejson"):
     if last_seen.get(ev["_type"], ev["_when"] ) != ev["_when"]:
         write_rrd(rrd_l[ev["_type"]], cfg, ev["_type"], ev)
     last_seen[ev["_type"]] = ev["_when"]
