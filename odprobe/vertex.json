@@ -9,7 +9,7 @@
 		"PUSH_any_tracker" :  "ipc://tracker_in",
 		"PUB_tracker_any" :  "ipc://tracker_out",
 
-		"PUSH_orchester_cpu" : "ipc://socksher",
+		"PUSH_orchester_cpu" : "ipc://_burn",
         "PUSH_orchester_clock" : "ipc://_tic_tac",
         "PUSH_orchester_ping" : "tcp://%(ext_ip)s:9566",
         "PUSH_orchester_proc" : "ipc://_sock_proc",
@@ -65,7 +65,7 @@
 		},
 		"loggers" : { 
 			"cpu" : { 
-                "level" : "INFO",
+                "level" : "ERROR",
                 "handlers" : ["syslog" ]
             },"dev" : { 
                 "level" : "WARNING",

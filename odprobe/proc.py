@@ -27,7 +27,7 @@ def proc(ctx, payload, msg):
     carbon_measure = dict()
     interesting = { 
         '/usr/lib/firefox/firefox', '/opt/google/chrome/chrome', 'mysqld', 
-        'mongod', "ping.py", 
+        'mongod', "ping.py", "clock.py", "orchester.py", 
         "proc.py", "master.py", "tracker.py","cpu.py", "rrd.py", "csvw.py"}
     for x in all_proc:
         try:

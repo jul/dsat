@@ -34,20 +34,18 @@ vector = {
     "seq":0, "type" : "cpu", "event" : "INIT", 
     "next":"cpu", "job_id": "0",
     "task_id":"0","seq":0,
-    "emitter" : "clock(%d)" % os.getpid(),
+    "emitter" : "clock(%d)" % int(ID),
     "serialization": "simplejson",
     "arg" : '{"load" : 0, "5min" : 0}', "where" : "localhost", 
     "step" :"master", "wid":"0", "pid":L_CFG["pid"] ,"retry":2 }
 
 
-DELAY=.002
-
+DELAY=.01
+smoothing_factor = None
 def reschedule(scheduler, vector, socket):
     """push a job on socket at rescheduled interval
     rescheduler si task_id qui est dans what appartient aux taches active
-  
-TOFIX  loses one job a day w 300 sec interval
-TODO find the hidden monotonic time function
+
     """
     global smoothing_factor
     try:
@@ -72,8 +70,10 @@ reschedule(ticker, vector, cnx["orchester_out"])
 
 while True:
     global smoothing_factor
+    ### use messages to get this info. and change clock frequency to avoid
+    ### classical transition problems. 
+    
     sleep(1)
     smoothing_factor = 0
-    D("ping")
 
 

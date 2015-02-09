@@ -2,6 +2,7 @@
 import sys
 
 from dsat.message import send_vector
+from dsat.carbon import carbon_maker
 from dsat.linux_mtime import m_time as time
 from random import randint
 from time import sleep
@@ -28,7 +29,7 @@ def every(x):
         y = y%x
 
 frequency = dict(
-    proc = every(200),
+    proc = every(100),
     ping = every(100),
 )
 
@@ -66,17 +67,25 @@ def cpu_clock(connector,_5, vector):
         connector.log.exception(e)
         raise Exception("AARG %r" % e)
 
+
+
+
+
+connector = Connector("cpu")
+
+carbon_send = carbon_maker(connector)
 def cpu(connector, payload, vector):
     cpu_f.seek(0)
     _5,_10,_15 = cpu_f.read().split(" ")[:3]
   #  cpu_clock(connector,_5 , vector)
     reroute_to(connector, frequency, vector)
+    if int(vector["task_id"]) % 100 == 0:
+        carbon_send( { "5m" : float(_5), "10m" : float(_10), "15m" :  float(_15) })
     return { "data" : [ _5,_10,_15], "load" : _5, "5min" : _5, "10min" : _10, "15min" :  _15 }
 
+connector.func = cpu
 
-
-
-connector = Connector(cpu).turbine()
+connector.turbine()
 
 
 
