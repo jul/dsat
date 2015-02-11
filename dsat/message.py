@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
 from functools import wraps
 from calendar import timegm
 from time import gmtime, sleep
@@ -11,6 +12,7 @@ from types import StringType
 from simplejson import dumps
 from time import sleep, time
 from exceptions import KeyError
+import zmq
 
 """Function and class related to process control and messaging"""
 
@@ -65,7 +67,6 @@ def fast_parse_event(zmq_socket):
     """Takes a well configure socket and returns the state.
         # MESSAGE FORMAT:
         {where}:{step}:{wid}:{pid}:{next}\0{type}:{task_id}:{event}:{seq}\0serialization\0payload
-    
     The returned vector contains:
         * task_id = something I intend to use in the future to put a series of CSV 
             NEXT values for auto routing from source
@@ -80,12 +81,15 @@ def fast_parse_event(zmq_socket):
         * event the event that is sent
 
     """
-    null_joined_string = zmq_socket.recv()
+    s = zmq_socket
+    recv=s.recv
+    null_joined_string = recv()
     try:
         # MESSAGE FORMAT:
         """
         {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{task_id}:{event}:{seq}\0serialization\0payload
         """
+        print "RCV"  + null_joined_string
         where, envelope, serialization, payload = null_joined_string.split("\x00")
         
         emitter, _type, task_id, event, seq = envelope.split(":")
@@ -116,8 +120,9 @@ def parse_event(zmq_socket):
     """
         Commodity variant if you need to access the args sent in the message
     """
+    from .state import serializer_for
     to_return = fast_parse_event(zmq_socket)
-    to_return["arg"] = serializer_for(to_return)[0](to_return["arg"])
+    to_return["arg"] = serializer_for(to_return["serialization"])(to_return["arg"])
     
     return to_return
 
@@ -142,6 +147,7 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     if update set it updates arg
     """
     assert(isinstance(vector, dict))
+    topic = ""
     if event is not _SENTINEL:
         vector["event"] = event
     if update is not _SENTINEL:
@@ -150,7 +156,10 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
         what = WHAT_FORMAT.format(**vector)
         where = WHERE_FORMAT.format(**vector)
         vector["serialization"] = str(vector["serialization"])
-        zmq_socket.send("\x00".join([ where, what , vector["serialization"], vector["arg"]]))
+        print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"],
+vector["arg"]])
+        send = zmq_socket.send
+        send("\x00".join([ where, what , vector["serialization"], vector["arg"]]))
 
     except KeyError as k:
         raise( KeyError("malformed vector %r :<%r>" % (vector,k)))

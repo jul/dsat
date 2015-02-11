@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 """
@@ -47,7 +46,8 @@ from circus.util import DEFAULT_ENDPOINT_SUB, DEFAULT_ENDPOINT_DEALER
 
 _SENTINEL = object
 
-__all__ = [ "_f", "get_connection", "ProcTracker", "TimerProxy", "Connector" ]
+__all__ = [ "_f", "get_connection", "ProcTracker", "TimerProxy", "Connector",
+"serializer_for" ]
 
 context = zmq.Context()
 _f = lambda d: ":".join([ str(d.get(k,"NaV")) for k in [ "pid", "seq", "step","next",
@@ -56,11 +56,10 @@ _f = lambda d: ":".join([ str(d.get(k,"NaV")) for k in [ "pid", "seq", "step","n
 
 identity = lambda a:a
 
-def serializer_for(module_name, primitive):
-    assert module_name not in { None, "None" }
+def serializer_for(module_name, primitive="loads"):
+    assert module_name not in set([ None, "None" ])
     if module_name  == "str":
         return str
-    
     ser_module = __import__(module_name, globals(), locals(), [primitive, ], -1)
     return getattr(ser_module, primitive)
 
@@ -194,11 +193,8 @@ class Connector(object):
         self.log = logging.getLogger(
             self.here in self.vertex["logging"]["loggers"] and self.here or "dev"
         )
-        self.log.info("CNX : %r", self.cnx)
         self.local_info['next'] = self.cnx.get('next') and "unset" or "TERMINUS"
-        
         self.log.info(("wrapping %(here)s" % self.__dict__) + "[%(wid)s]" % self.local_info )
-        
     
     def turbine(self):
         """Verb: turbiner : slang french for working hard
@@ -303,7 +299,8 @@ class Connector(object):
         cnx_list["previous"] = set()
         CONFIG.update(LOCAL_INFO)
         here = CONFIG["step"]
-        print("building cnx list for step %(step)s" % CONFIG)
+        CONFIG['here']=here
+        print("[%(here)s] building cnx list" % CONFIG)
         interesting_link = [
             link for link in CONFIG["cnx"] if ( "any" not in link and \
                 here in link.split("_") )
@@ -311,6 +308,8 @@ class Connector(object):
         rec_scheme=dict(
             PUB="SUB", SUB="PUB",
             PUSH="PULL", PULL="PUSH")
+        number_to_scheme = { getattr(zmq, s): s for s in rec_scheme.keys() +
+rec_scheme.values() }
         cfg = ConfigParser()
         # circus prefix for the process name
         prefix_proc= "watcher:"
@@ -324,65 +323,84 @@ class Connector(object):
         for link in interesting_link:
             ## conf is PUSH_pusher_puller
             scheme , src, dst = link.split("_")
-            if "tracker" in {src, dst}:
-                continue 
-            #orchestrer is the init point of this circus setup
-            if src == here or ( "orchester" == here and "orchester" == src ):
+            if "tracker" in {src, dst} or here == "master":
+                print "[%s] special case"
+                continue
+            if ( src == here ):
+                print "[%s] OUT connection %s/%s=>%s" % (here,scheme, src, dst)
                 scheme = getattr(zmq,scheme)
-                step = dst
                 is_next = True
-                cnx = cnx_list[step] = context.socket(scheme)
+                cnx = cnx_list[dst] = context.socket(scheme)
                 if not cnx_list.get("next", {}).get(dst):
+                    print "[%s] %s/%s=>%s in NEXT cnx" % (here,scheme, src, dst)
                     cnx_list["next"][dst] = cnx
             else:
-                step = src
                 scheme= rec_scheme[scheme]
                 scheme = getattr(zmq,scheme)
+                print "[%s] IN connection %s/%s=>%s (previous)" % (here,scheme, dst, src)
                 ## dont call your step next ... think of reserved keyword ...
-                cnx = cnx_list[step] = context.socket(scheme)
+                cnx = cnx_list[dst] = context.socket(scheme)
                 is_next = False
-                print "previous is %r" % cnx
                 cnx_list["previous"] |= { cnx }
                 # singleton bind to their end, moving parts connect for outgoing links
                 # opposite for incoming link
                 # EXCEPT master to orchester
             address = CONFIG["cnx"][link] % CONFIG
 
-            if ( "orchester" == src and "orchester"==here and "master"!= dst) or \
-                "orchester" != here and here in singleton:
+            if ( "orchester" == src and "orchester"==here and "master"!= dst
+and dst not in singleton) or \
+                ("orchester" != here) and (here in singleton and here ==dst ):
                 if address not in already_bound:
                     # believe me you want this to troubleshoot
+                    print("[%s] BINDING %s/%s=>%s (%s) / %r / <%r>" %
+                        (here, scheme, src, dst, link, address, cnx))
                     cnx.bind(address)
-                    print("[%s] %s // binding %r / %r on %r / %r" % (step, here, scheme, step,address, cnx))
-                    already_bound[address] = step
+                    already_bound[address] =  here == src and dst or src 
+                    if scheme == zmq.SUB:
+                        print "[%s] This is not optimal (SUB everything)"
+                        #cnx.setsockopt(zmq.SUBSCRIBE, "")
                 else:
+                    print("[%s] ALREADY %s/%s=>%s (%s=%s?) / %r" %
+                        (here, scheme, src, dst,  step, here, address, cnx))
                     cnx = cnx_list[step] = cnx_list[already_bound[address]] 
                 is_singleton = True
             else:
-                print("[%s] CONNECT on %s;%s because single" % (here, link, address))
+                print("[%s] %s/%s=>%s CONNECT on %s;%s because single" % (here,scheme, src, dst, link, address))
                 if address not in already_bound: 
                     cnx.connect(address)
-                    print("[%s] cnxing %r / %r on %r/%r" % (step, scheme, step,address, cnx))
-                    already_bound[address] = step
+                    print("[%s] %s/%s=>%s cnxing %r / <%r>" % (here
+,scheme, src,
+dst, address, cnx))
+                    already_bound[address] = [ src, dst ][here == src ]
                 else:
                     cnx = cnx_list[step] = cnx_list[already_bound[address]]
                 is_singleton = False
             if not is_next:
                 cnx_list["previous"] = {  cnx, } 
-        if "orchester" == here:
+        if "master" == here:
+            cnx = context.socket(zmq.SUB)
+            cnx.connect(CONFIG["cnx"]["PUB_any_master"] % CONFIG )
+            print "[MASTER] LISTENING TO THE WORLD ON %s %r" % (
+                CONFIG["cnx"]["PUB_any_master"] %CONFIG, cnx)
+            print "[MASTER] SUBSCRIBING to %(where)s" % (CONFIG)
+            cnx.setsockopt(zmq.SUBSCRIBE, "")
+            cnx_list["previous"] = { cnx }
+            cnx_list["master"] = cnx
+        if ( "orchester" == here ):
             cnx = context.socket(zmq.PULL)
             cnx.bind(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
             cnx_list["orchester_in"] = cnx
-            print "[%s] BIND with  on o_in w PULL %s // %r" % (
-                here, CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG, cnx)
+            print "[%s] %s=>%s PUSH_any_orchester BIND with  %s // %r" % (
+                here, "any", "orchester", CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG, cnx)
 
         else:
             cnx = context.socket(zmq.PUSH)
             cnx.connect(CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
             cnx_list["orchester_out"] = cnx
-            print "[%s] orchester CNX with  on o_in w PUSH %s" % (
-                here,  CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
+            print "[%s] %s=>%s PUSH_any_orchester CNX %s" % (
+                here, "any", "??",  CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
         if "tracker" == here:
+            print "[tracker] I want your states" 
             cnx = context.socket(zmq.PULL)
             cnx.bind(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
             cnx_list["tracker_in"] = cnx
@@ -392,14 +410,16 @@ class Connector(object):
             cnx_list["tracker_out"] = cnx
         else:
             cnx = context.socket(zmq.PUSH)
+            print "[%s] =>tracker I will send you my states"  % here
             cnx.connect(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
             cnx_list["tracker_out"] = cnx
-            #cnx = cnx_list["tracker_in"] = context.socket(zmq.SUB)
-            #cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
+            cnx = cnx_list["tracker_in"] = context.socket(zmq.SUB)
+            cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
             # tracker is the process dedicated to get the statuses.  
             print "[%s] tracker in is %s // %r " % (here, CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG, cnx)
         if not len(cnx_list.get("next",{}).keys()):
             del(cnx_list["next"])
+        print cnx_list
         return dict(cnx_list)
 
 #compatibility with dsat 0.5.itworksforme
@@ -435,7 +455,6 @@ class ProcTracker(object):
         self._alive = { i[offset_in_st:] : int(cfg[i]["numprocesses"]) for i in cfg
             if i.startswith(prefix_proc) and not cfg[i].get("singleton") 
         }
-        D(cfg["watcher:rrd"].get("singleton"))
         ProcTracker.circus = CircusClient(
             endpoint = cfg["circus"].get("endpoint", DEFAULT_ENDPOINT_DEALER),
             timeout = CONFIG.get("circus_ctl_timeout", 10),

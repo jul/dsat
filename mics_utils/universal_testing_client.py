@@ -10,16 +10,14 @@ import sys,os
 import readline
 from readline import write_history_file, read_history_file
 import zmq
-from json import dumps, load, loads
+from simplejson import dumps, load, loads
 from dsat.message import send_vector
 from dsat.state import _f
-from zmq.utils import jsonapi
 
 _to = sys.argv[1]
 _mode = sys.argv[2]
-_stable = sys.argv[3] is "bind"
-_send = sys.argv[4]
-_what = None if len(sys.argv) <= 5 else sys.argv[5]
+_stable = sys.argv[3] == "bind"
+_what = None if len(sys.argv) <= 4 else sys.argv[4]
 
 my_logger = logging.getLogger('Logger')
 my_logger.setLevel(logging.DEBUG)
@@ -39,15 +37,16 @@ read_history_file(HIST)
 
 context = zmq.Context()
 client = context.socket(getattr( zmq, _mode))
-_cnx_mode = getattr(client, "bind" if _stable else "connect" )
+_boc =  _stable  and "bind" or "connect"
+_cnx_mode = getattr(client, _boc )
 _cnx_mode(_to)
 
-print "to: %r" % _to
-print "mode : %r" % _mode
-print "bind or connect? %r " % getattr(client, "bind" if _stable else "connect")
-print "send_mode %r " % getattr(client, _send)
-message = ""
+print "address: %r" % _to
+print "PATTERN: %r" % _mode
+print _boc
 
+
+message = ""
 while _what != None or message != "q" :
     if not _what:
         message = raw_input("%s >" % _to)
@@ -57,7 +56,9 @@ while _what != None or message != "q" :
         message=_what
         _what = None
     try:
-        print("/// %r" % _f(loads(message)))
+        print("SENT %s" % loads(message))
+        print "\n"
+        print client.socket_type
         send_vector(client, loads(message))
 
     except Exception as e:
