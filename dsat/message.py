@@ -24,6 +24,22 @@ __all__ = [ "parse_event", "send_vector",
 
 _SENTINEL = object()
 
+def extract_vector_from_dict(a_dict):
+    return { k: str(v) for k,v in a_dict.items() if k in { 
+            "type",
+            "channel",
+            "emitter",
+            "step",
+            "wid",
+            "where",
+            "event",
+            "seq",
+            "next",
+            "serialization",
+            "pid",
+        }
+    }
+
 
 def _filter_dict(a_dict):
     return { str(k):w for k,w in a_dict.items() if not k.startswith("_") }
@@ -86,7 +102,6 @@ def fast_parse_event(zmq_socket):
     null_joined_string = recv()
     try:
         # MESSAGE FORMAT:
-        print "RCV"  + null_joined_string
         where, envelope, serialization, payload = null_joined_string.split("\x00")
         
         emitter, _type, channel, task_id, event, seq = envelope.split(":")
@@ -131,6 +146,8 @@ fast_parse_vector = fast_parse_event
 
 
 def send_vector(zmq_socket, vector, event = _SENTINEL, update=_SENTINEL):
+    vector["seq"] = vector.get("seq", "0")
+
     incr_seq(vector)
 
     
@@ -153,18 +170,18 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     if update is not _SENTINEL:
         vector.update(update)
     try:
-        print vector
+
         what = WHAT_FORMAT.format(**vector)
         print what
         where = WHERE_FORMAT.format(**vector)
         vector["serialization"] = str(vector["serialization"])
-        print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"],
-vector["arg"]])
+   #print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"], vector["arg"]])
         send = zmq_socket.send
         send("\x00".join([ where, what , vector["serialization"], vector["arg"]]))
 
     except KeyError as k:
-        raise( KeyError("malformed vector %r :<%r>" % (vector,k)))
+        logging.error("malformed vector %r : <%r>" % (vector, k))
+        raise( KeyError("malformed vector %r :<%r>" % vector,k))
     except Exception as e:
         logging.error("MSG is "  + ",".join(map(repr,[ where, what , vector["serialization"], vector["arg"]])))
         raise(e)
