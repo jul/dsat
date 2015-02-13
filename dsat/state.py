@@ -70,7 +70,7 @@ def handle_function_call(self,  payload, vector, **kw):
                                 vector["serialization"], "loads"
                             )(
                                 vector["arg"]
-                            ) 
+                            )
     res = self.func(self , payload , vector)
     res = serializer_for(
             vector["serialization"], "dumps"
@@ -79,15 +79,13 @@ def handle_function_call(self,  payload, vector, **kw):
         )
     vector["arg"] = res
     assert(isinstance(vector["arg"], str))
-    
-    
-    
+
 class Connector(object):
     """
     latin co-nexion
         putting nodes (edges) in relationship (by the mean of vertices)
-    
-    Class connecting a process to its neighbours 
+
+    Class connecting a process to its neighbours
         also provides the access to facility such as:
             * local config
             * preconfigured logger
@@ -97,7 +95,7 @@ class Connector(object):
             * access to a point of presence for external satellite
                 (it may be orcherster or master, I forgot)
             * conditionnal vector muxing on output
-            
+
         """
     @staticmethod
     def construct_info_from_cli( func_or_name):
@@ -136,12 +134,12 @@ class Connector(object):
             ext_ip = socket.gethostbyname(socket.gethostname()),
             pid = os.getpid(),
         )
-        
+
         if "where" in CONFIG:
             assert(LOCAL_INFO["where"] == CONFIG["where"])
         return here, CONFIG, LOCAL_INFO, ID
 
-        
+
     def __init__(self, func_or_name, **option):
         """
         * the name of the function should be the name of the circus watcher 
@@ -307,7 +305,10 @@ class Connector(object):
         ]
         rec_scheme=dict(
             PUB="SUB", SUB="PUB",
-            PUSH="PULL", PULL="PUSH")
+            PUSH="PULL", PULL="PUSH",
+            REP = "REQ", REQ="REP",
+            PAIR = "PAIR",
+        )
         number_to_scheme = { getattr(zmq, s): s for s in rec_scheme.keys() +
 rec_scheme.values() }
         cfg = ConfigParser()
@@ -401,13 +402,18 @@ dst, address, cnx))
                 here, "any", "??",  CONFIG["cnx"]["PUSH_any_orchester"] % CONFIG)
         if "tracker" == here:
             print "[tracker] I want your states" 
+            print "[tracker] IN %r" % (CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
             cnx = context.socket(zmq.PULL)
             cnx.bind(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)
             cnx_list["tracker_in"] = cnx
 
             cnx = context.socket(zmq.PUB)
             cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
-            cnx_list["tracker_out"] = cnx
+            cnx = context.socket(zmq.PUB)
+            cnx.bind(CONFIG["cnx"]["PUB_tracker_all"]%CONFIG)
+            cnx_list["republish"] = cnx
+            print "[tracker] Let's have a pubsub for all %r %r" % (CONFIG["cnx"]["PUB_tracker_all"]%CONFIG, cnx)
+            
         else:
             cnx = context.socket(zmq.PUSH)
             print "[%s] =>tracker I will send you my states"  % here

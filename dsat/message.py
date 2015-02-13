@@ -50,7 +50,7 @@ event: the state of the last message (FSM)
 seq : incr by one from init to happy end
 
 """
-WHAT_FORMAT = "{emitter}:{type}:{task_id}:{event}:{seq}"
+WHAT_FORMAT = "{emitter}:{type}:{channel}:{task_id}:{event}:{seq}"
 
 def incr_task_id(vector):
     task_id = vector["task_id"]
@@ -66,7 +66,7 @@ def incr_seq(vector):
 def fast_parse_event(zmq_socket):
     """Takes a well configure socket and returns the state.
         # MESSAGE FORMAT:
-        {where}:{step}:{wid}:{pid}:{next}\0{type}:{task_id}:{event}:{seq}\0serialization\0payload
+        {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{channel}:{task_id}:{event}:{seq}\0serialization\0payload
     The returned vector contains:
         * task_id = something I intend to use in the future to put a series of CSV 
             NEXT values for auto routing from source
@@ -86,13 +86,10 @@ def fast_parse_event(zmq_socket):
     null_joined_string = recv()
     try:
         # MESSAGE FORMAT:
-        """
-        {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{task_id}:{event}:{seq}\0serialization\0payload
-        """
         print "RCV"  + null_joined_string
         where, envelope, serialization, payload = null_joined_string.split("\x00")
         
-        emitter, _type, task_id, event, seq = envelope.split(":")
+        emitter, _type, channel, task_id, event, seq = envelope.split(":")
         location, step, wid, pid, _next = where.split(":")
 
     except Exception as e:
@@ -100,6 +97,7 @@ def fast_parse_event(zmq_socket):
     return dict(
             type = _type,
             task_id = task_id,
+            channel = channel,
             emitter = emitter,
             step = step,
             where = location,
@@ -114,7 +112,9 @@ def fast_parse_event(zmq_socket):
 
 identity = lambda a: a
 
-
+def get_payload(message):
+    from .state import serializer_for
+    return serializer_for(message["serialization"])(message["arg"])
 
 def parse_event(zmq_socket):
     """
@@ -153,7 +153,9 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     if update is not _SENTINEL:
         vector.update(update)
     try:
+        print vector
         what = WHAT_FORMAT.format(**vector)
+        print what
         where = WHERE_FORMAT.format(**vector)
         vector["serialization"] = str(vector["serialization"])
         print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"],

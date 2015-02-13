@@ -11,8 +11,11 @@ import readline
 from readline import write_history_file, read_history_file
 import zmq
 from simplejson import dumps, load, loads
-from dsat.message import send_vector
+from dsat.message import send_vector, fast_parse_vector
 from dsat.state import _f
+import dsat
+
+print dsat.__version__
 
 _to = sys.argv[1]
 _mode = sys.argv[2]
@@ -37,29 +40,43 @@ read_history_file(HIST)
 
 context = zmq.Context()
 client = context.socket(getattr( zmq, _mode))
+sleep(1)
 _boc =  _stable  and "bind" or "connect"
 _cnx_mode = getattr(client, _boc )
 _cnx_mode(_to)
+if _mode == "SUB":
+    client.setsockopt(zmq.SUBSCRIBE, '')
+    print "USBSRCIRINB ALL"
+sleep(1)
+
 
 print "address: %r" % _to
 print "PATTERN: %r" % _mode
 print _boc
 
-
-message = ""
-while _what != None or message != "q" :
-    if not _what:
-        message = raw_input("%s >" % _to)
-        if "q" == message:
-            break
+recv = False
+message=_what
+while message:
+    if "q" == message:
+        break
+    if "r" == _what:
+        recv=True
     else:
-        message=_what
-        _what = None
+        message = raw_input("%s >" % _to)
     try:
-        print("SENT %s" % loads(message))
-        print "\n"
-        print client.socket_type
-        send_vector(client, loads(message))
+        if recv:
+            cpt = 0
+            while True:
+                print "waiting ..."
+                print  fast_parse_vector(client)
+                print "RECEVIED"
+                print (" " * cpt ) + [ "\\", "-" , "/" , "|" ][cpt%4]
+                cpt += 1
+        else:
+            print("SENT %s" % loads(message))
+            print "\n"
+            print client.socket_type
+            send_vector(client, loads(message))
 
     except Exception as e:
         print(repr(e))
