@@ -172,7 +172,6 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     try:
 
         what = WHAT_FORMAT.format(**vector)
-        print what
         where = WHERE_FORMAT.format(**vector)
         vector["serialization"] = str(vector["serialization"])
    #print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"], vector["arg"]])
