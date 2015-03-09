@@ -266,11 +266,11 @@ class Connector(object):
                 try:
                     if not self.is_router:
                         retry +=1 
-                        re_send_vector(status, vector, "BEGIN")
+                        #re_send_vector(status, vector, "BEGIN")
                         D("BEGIN")
                         handle_function_call(self, vector["arg"], vector)
-                        assert(isinstance(vector["arg"], str))
-                        re_send_vector(status, vector, "END")
+                        #assert(isinstance(vector["arg"], str))
+                        #re_send_vector(status, vector, "END")
 
                     D("cnx['next'] is %r " % self.cnx.get("next", "not set")) 
                     is_last = True
@@ -281,7 +281,7 @@ class Connector(object):
                             assert(isinstance(step,str) or isinstance(step, unicode))
                             vector["next"] =  step
                             send_vector(to_send, vector ,"SEND")
-                            re_send_vector(status, vector ,"SEND")
+                            #re_send_vector(status, vector ,"SEND")
                             is_last = False
                             D("sent to step %r" %step) 
                         

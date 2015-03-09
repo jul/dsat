@@ -78,28 +78,7 @@ def decr_seq(vector):
 def incr_seq(vector):
     vector["seq"]= str(( int(vector["seq"])+1 ))
 
-
-def fast_parse_event(zmq_socket):
-    """Takes a well configure socket and returns the state.
-        # MESSAGE FORMAT:
-        {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{channel}:{task_id}:{event}:{seq}\0serialization\0payload
-    The returned vector contains:
-        * task_id = something I intend to use in the future to put a series of CSV 
-            NEXT values for auto routing from source
-        * where = on which server
-        * step = the worker's circus name that is actually suppose to consume
-        * next the next step to send (info)
-        * wid: circus worker ID
-        * seq: message sequence
-        * arg: the unserialized arguments
-        * pid
-        * serialization: the format in which arg was serialized
-        * event the event that is sent
-
-    """
-    s = zmq_socket
-    recv=s.recv
-    null_joined_string = recv()
+def parse_mesg(null_joined_string):
     try:
         # MESSAGE FORMAT:
         where, envelope, serialization, payload = null_joined_string.split("\x00")
@@ -124,6 +103,30 @@ def fast_parse_event(zmq_socket):
             serialization = str(serialization),
             pid = pid,
         )
+    
+
+def fast_parse_event(zmq_socket):
+    """Takes a well configure socket and returns the state.
+        # MESSAGE FORMAT:
+        {where}:{step}:{wid}:{pid}:{next}\0{emitter}:{type}:{channel}:{task_id}:{event}:{seq}\0serialization\0payload
+    The returned vector contains:
+        * task_id = something I intend to use in the future to put a series of CSV 
+            NEXT values for auto routing from source
+        * where = on which server
+        * step = the worker's circus name that is actually suppose to consume
+        * next the next step to send (info)
+        * wid: circus worker ID
+        * seq: message sequence
+        * arg: the unserialized arguments
+        * pid
+        * serialization: the format in which arg was serialized
+        * event the event that is sent
+
+    """
+    s = zmq_socket
+    recv=s.recv
+    null_joined_string = recv()
+    return parse_mesg(null_joined_string)
 
 identity = lambda a: a
 
