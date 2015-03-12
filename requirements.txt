@@ -1,4 +1,3 @@
 circus
-circus-web
 anyjson>=0.3.3
 configparser
