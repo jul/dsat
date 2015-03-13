@@ -23,9 +23,22 @@ __all__ = [ "parse_event", "send_vector",
 
 
 _SENTINEL = object()
-
+TEMPLATE = dict(
+    type= "",
+    seq = 0,
+    task_id = '0',
+    event= "INIT",
+    next="",
+    where = "localhost",
+    emitter = "",
+    channel = "",
+    wid = '',
+    step = '',
+    pid = '1',
+    serialization = 'str',
+)
 def extract_vector_from_dict(a_dict):
-    return { k: str(v) for k,v in a_dict.items() if k in { 
+    return { k: a_dict.get(k, TEMPLATE[k]) for k in { 
             "type",
             "channel",
             "emitter",
