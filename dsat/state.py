@@ -71,6 +71,13 @@ def serializer_for(module_name, primitive="loads"):
     ser_module = __import__(module_name, globals(), locals(), [primitive, ], -1)
     return getattr(ser_module, primitive)
 
+def serialize_arg(vector):
+    vector["arg"] = serializer_for(
+                                vector["serialization"], "dumps"
+                            )(
+                                vector["arg"]
+                            )
+
 def handle_function_call(self,  payload, vector, **kw):
     """calls function with everything and handle magically the
     recasting of messages"""
@@ -118,6 +125,26 @@ class Connector(object):
         here = func.__name__ if hasattr(func_or_name, "__name__") else func_or_name
         return Connector.construct_info(here, CONFIG, ID)
         ## a little glitch in my code
+
+
+    def update_logging(self, options = {}):
+        self.config["logging"].update({
+           "formatters": {
+                "verbose": {
+                    "format": "%(asctime)s [%(levelname)s] [" +self.here+":"+ \
+                           self.config["wid"]+ \
+                            ":%(module)s:%(lineno)d] %(process)d %(message)s"
+                },
+                "simple": {
+                    "format": "[%(levelname)s] ["+self.here+":"+self.config["wid"]+\
+                            ":%(module)s:l%(lineno)d] %(process)d %(message)s"
+                }
+            }
+        })
+        self.config["logging"].update(options)
+        dictConfig(self.config["logging"])
+
+        
     @staticmethod
     def construct_info( here,CONFIG , ID):
         if len( {"global_config", "local_config" } & set(CONFIG.keys())) == 2:
@@ -210,13 +237,15 @@ class Connector(object):
         self.local_info['next'] = self.cnx.get('next') and "unset" or "TERMINUS"
         self.log.info(("wrapping %(here)s" % self.__dict__) + "[%(wid)s]" % self.local_info )
     
-    def turbine(self):
+    def turbine(self, func = _SENTINEL):
         """Verb: turbiner : slang french for working hard
             turbine == imperative format
             n.f: a stuff that spins like hell in an engineering system
         Does basically the wait and process
 
         """
+        if func is not _SENTINEL:
+            self.func = func
         cnx = self.cnx
         if "where" in self.vertex:
             assert(self.local_info["where"] == self.vertex["where"])

@@ -43,6 +43,7 @@ def extract_vector_from_dict(a_dict):
             "channel",
             "emitter",
             "step",
+            "task_id",
             "wid",
             "where",
             "event",
