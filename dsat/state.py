@@ -394,8 +394,8 @@ src, dst)
                 # EXCEPT master to orchester
             address = CONFIG["cnx"][link] % CONFIG
 
-            if ( "orchester" == src and "orchester"==here and "master"!= dst
-and dst not in singleton) or \
+            if ( "orchester" in { src, dst } and "orchester"==here and "master"!= dst
+and dst not in singleton | { "producer", }) or \
                 ("orchester" != here) and (here in singleton and here ==dst ) \
 or (here, dst) == ('tracker', 'consumer'):
 
@@ -466,7 +466,7 @@ dst, address, cnx))
             cnx_list["tracker_in"] = cnx
 
             cnx = context.socket(zmq.PUB)
-            cnx.connect(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
+            cnx.bind(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
             
         else:
             cnx = context.socket(zmq.PUSH)
