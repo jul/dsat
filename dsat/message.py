@@ -37,6 +37,13 @@ TEMPLATE = dict(
     pid = '1',
     serialization = 'str',
 )
+def serializer_for(module_name, primitive="loads"):
+    assert module_name not in set([ None, "None" ])
+    if module_name  == "str":
+        return str
+    ser_module = __import__(module_name, globals(), locals(), [primitive, ], -1)
+    return getattr(ser_module, primitive)
+
 def extract_vector_from_dict(a_dict):
     return { k: a_dict.get(k, TEMPLATE[k]) for k in { 
             "type",
@@ -145,14 +152,12 @@ def fast_parse_event(zmq_socket):
 identity = lambda a: a
 
 def get_payload(message):
-    from .state import serializer_for
     return serializer_for(message["serialization"])(message["arg"])
 
 def parse_event(zmq_socket):
     """
         Commodity variant if you need to access the args sent in the message
     """
-    from .state import serializer_for
     to_return = fast_parse_event(zmq_socket)
     to_return["arg"] = serializer_for(to_return["serialization"])(to_return["arg"])
     
@@ -191,6 +196,9 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
         what = WHAT_FORMAT.format(**vector)
         where = WHERE_FORMAT.format(**vector)
         vector["serialization"] = str(vector["serialization"])
+        if not isinstance(vector["arg"], str):
+            vector["arg"] = serializer_for(vector["serialization"], "dumps")(vector["arg"])
+
    #print "MSG IS %s" % "\x00".join([ where, what , vector["serialization"], vector["arg"]])
         send = zmq_socket.send
         send("\x00".join([ where, what , vector["serialization"], vector["arg"]]))
@@ -198,8 +206,15 @@ def re_send_vector(zmq_socket,vector, event = _SENTINEL, update=_SENTINEL):
     except KeyError as k:
         logging.error("malformed vector %r : <%r>" % (vector, k))
         raise( KeyError("malformed vector %r :<%r>" % vector,k))
+        logging.exception(e)
     except Exception as e:
         logging.error("MSG is "  + ",".join(map(repr,[ where, what , vector["serialization"], vector["arg"]])))
+        logging.error("WHAT:%r" % what)
+        logging.error("WHERE:%r" % where)
+        logging.error("SERIA:%(serialization)r" % vector)
+        logging.error("ARG:%(arg)r" % vector)
+
+        logging.exception(e)
         raise(e)
 
 

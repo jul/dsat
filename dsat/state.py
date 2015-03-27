@@ -31,7 +31,8 @@ from zmq.utils import jsonapi
 import json
 from time import gmtime
 from calendar import timegm
-from .message import send_vector, fast_parse_vector, re_send_vector,  incr_task_id
+from .message import send_vector, fast_parse_vector, re_send_vector, \
+    incr_task_id, serializer_for
 from circus.client import CircusClient
 from circus.commands import get_commands
 from contextlib import contextmanager
@@ -63,13 +64,6 @@ def double_load_json(file1, file2):
         with open(file2) as local_conf:
             CONFIG.update(json.load(local_conf))
     return CONFIG
-
-def serializer_for(module_name, primitive="loads"):
-    assert module_name not in set([ None, "None" ])
-    if module_name  == "str":
-        return str
-    ser_module = __import__(module_name, globals(), locals(), [primitive, ], -1)
-    return getattr(ser_module, primitive)
 
 def serialize_arg(vector):
     vector["arg"] = serializer_for(
@@ -172,7 +166,8 @@ class Connector(object):
             id=ID,
             step = here,
             ip= socket.gethostbyname(socket.gethostname()),
-            ext_ip = socket.gethostbyname(socket.gethostname()),
+            ext_ip = CONFIG.get("ext_ip",
+socket.gethostbyname(socket.gethostname())),
             pid = os.getpid(),
         )
 
