@@ -3,6 +3,7 @@
 
 from archery.bow import Daikyu as sdict
 import sys
+import os
 import atexit
 
 
@@ -25,6 +26,11 @@ SENTINEL = object
 if not len(sys.argv) >= 1:
     raise( Exception("Arg"))
 
+def warn(msg):
+    if True:
+        print msg
+    else:
+        raise(Exception(msg))
 
 class ToxicSet(set):
     """a set for wich add is a shortcut for union
@@ -73,6 +79,11 @@ class Backend(object):
     the cache is destroyed if nb lurkers = 0
     """
     # list of lurkers per region
+    # The singleton approach I am trying to have is stupid.
+
+    # On the other hand keeping the file for saving in O_EXCL could help 
+    # Ensuring one access possible at a time ... as long as we are living
+    # in a non distributed env
     _db = None
     # list of reference counts per channel per lurkers
     ## requires that keys are unique for EVERY region (hence the use of stamper)
@@ -83,7 +94,7 @@ class Backend(object):
         return { ch : { cons : task_s.to_json() 
                 for cons, task_s in chan_ref.items() 
                 }
-                for ch, chan_ref in Backend._ref_counter.items()
+                for ch, chan_ref in self._ref_counter.items()
         }
     def _load(self, json_dict):
         ### nice to have also load the cache config ..... 
@@ -97,22 +108,41 @@ class Backend(object):
         for channel in Backend._ref_counter:
             self.db(channel)
 
-    def save(self, name):
+    def register_atexit(self):
+        if not self.atexit:
+            atexit.register(lambda :self.save())
+            self.atexit = True
+    def save(self, name = SENTINEL):
+        """on successfull load/save register the atexit save"""
+        if name is SENTINEL:
+            name = self.backup_name
+            if not name:
+                raise(Exception("What?!"))
         with open(name, "w") as save_there:
             json.dump(self._dump(), save_there)
+            self.backup_name=name
+            self.register_atexit()
 
-    def load(self, name):
-        with open(name) as backup :
-            self._load(json.load(backup))
-            self.sync()
+    def load(self, name = SENTINEL):
+        name = name is SENTINEL and self.backup_name or name
+        if not name is SENTINEL and os.path.exists(name):
+            with open(name) as backup :
+                try:
+                    self._load(json.load(backup))
+                    self.backup_name=name
+                    self.sync()
+                    self.register_atexit()
+                except Exception as e:
+                    logging.exception(e)
+                    pass
+        else:
+            warn("No bakcup found")
 
     def sync(self):
         task_per_chan = sdict()
         for chan, gc in Backend._ref_counter.items():
             task_per_chan += sdict({ chan :ToxicSet( [ l for x in  gc.values() for l in x]) })
         new_ref_counter = Backend._ref_counter.copy()
-        print task_per_chan
-        print new_ref_counter
         for chan, tasks in task_per_chan.items():
             for task_id in tasks:
                 # dont test for False but for Non existent values
@@ -124,15 +154,16 @@ class Backend(object):
         Backend._ref_counter = new_ref_counter
 
     def __init__(self, **option):
-        self.name = option.get("name", 'garbage_collector')
+        self.backup_name = option.get("name", 'garbage_collector')
+        self.atexit = None
         if Backend._db is None:
             Backend._db = sdict()
         if "cache_maker" not in option:
             from repoze.lru import LRUCache
         self.cache_maker = option.get("cache_maker",
-            lambda name: LRUCache(10000)
+            lambda name: LRUCache(100000)
         )
-        Backend._ref_counter = Backend._ref_counter
+        self._ref_counter = Backend._ref_counter
 
     def register(self, channel_name, lurker):
         """register a lurker for channel"""
@@ -192,29 +223,41 @@ class Backend(object):
     def drop(self, db):
         del Backend._db[db]
 
-
-if '__main__' == __name__:
-    CONFIG, LOCAL_INFO, ID = construct_info(sys.argv, "tracker")
-    dictConfig(CONFIG.get("logging",{}))
-    log = logging.getLogger("tracker")
-    CONFIG.update(LOCAL_INFO)
-    D = log.debug
-
-    D("Started tracker")
-
+def dogpile_builder(name,dogpile_dict_config ={}, *a, **kw):
+    """map entries of input to buid region according to dogpile
+    then buid the Backend with kw
+    dogpile_dict_config is made of
+        * positionnal a driver name for the backend
+        * named argument
+    why not a tuple instead of a dict with one key? 
+    It is easier to serialize/put in a config
+    """
     from dogpile.cache.region import make_region
+    DEFAULT_CONFIG =  {
+            'dogpile.cache.dbm' : dict(
+                    expiration_time = 30,
+                    arguments = { "filename":"./%s.dbm" % name }
+                )
+        }
+
+    if not dogpile_dict_config or set(dogpile_dict_config) & set(DEFAULT_CONFIG):
+        DEFAULT_CONFIG.update(dogpile_dict_config)
+        dogpile_dict_config = DEFAULT_CONFIG
+
     def cache_maker(name):
-        reg= make_region(
-            ).configure( 'dogpile.cache.dbm',
-                expiration_time = 30,
-                arguments = {
-                    "filename":"./%s.dbm" % name
-                })
+        reg= make_region().configure(
+                dogpile_dict_config.keys().pop(),
+                **dogpile_dict_config.values()[0]
+            )
         reg.put = reg.set
         reg.invalidate = reg.delete
         return reg
-    task_storage = Backend(cache_maker = cache_maker)
-    atexit.register(lambda : task_storage.save("me"))
+    CONFIG = dict(cache_maker = cache_maker, name = "%s.save" % name)
+    CONFIG.update(kw)
+    return Backend(**CONFIG)
+
+if '__main__' == __name__:
+    task_storage = dogpile_builder('file_test')
     def see(task_storage):
         for cons, channel in product(("cons1", "cons2"), ("ch1","ch2")):
             if cons in task_storage._ref_counter[channel]:
@@ -223,18 +266,17 @@ if '__main__' == __name__:
                 print task_storage._ref_counter[channel][cons]
                 print ""
     try:
-        task_storage.load("me")
+        task_storage.load()
         for i in range(10):
             print "%d %r" % (i, task_storage.get("ch1", str(i)))
         task_storage.sync()
         see(task_storage)
     except Exception as e:
         print "NO BACKUP (%r) loaded" % e
-        if e:
-            raise e
         pass
     del(task_storage)
-    task_storage = Backend(cache_maker = cache_maker)
+    task_storage = dogpile_builder('file_test')
+    task_storage.load()
 
 
     task_storage.register("ch1", "cons1")
@@ -262,9 +304,10 @@ if '__main__' == __name__:
         # [ 3, 4 , 5 ] on ch1 should be out
     deref_once = { 1, 2 , 6, 8}
     deref_twice = { 3, 4, 5 }
-    ch1_after_all_union = set(reduce(set.__or__,task_storage._ref_counter["ch1"].values()))
-    ch2_after_all_union = set(reduce(set.__or__,task_storage._ref_counter["ch2"].values()))
+    ch1_after_all_union = reduce(set.__or__,task_storage._ref_counter["ch1"].values())
+    ch2_after_all_union = reduce(set.__or__,task_storage._ref_counter["ch2"].values())
 
+    task_storage.save()
 
     def nb_ref(task_storage, channel, task_id):
        return { cons: int(task_id in gc) for cons,gc in task_storage._ref_counter[channel].items()}
@@ -279,3 +322,4 @@ if '__main__' == __name__:
         
     #task_storage.dec_ref(channel, lurker, new["task_id"])
     #task_storage.unregister(channel, new["emitter"])
+    see(task_storage)
