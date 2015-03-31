@@ -30,10 +30,11 @@ def carbon_maker(**options):
         if not measure_dict:
             return None
         try_me = 1
-        timestp = int(time())
-        message = '\n'.join(["%s %s %s" % (
-            ".".join([ "DSAT", cfg['name'] ,  cfg["where"], cfg["step"], path]), 
-                    value, str(timestp)) for \
+        timestp = time()
+        # https://github.com/graphite-project/carbon/blob/master/lib/carbon/protocols.py#L77
+        message = '\n'.join(["%s %.15f %f" % (
+            ".".join([ "DSAT", cfg['name'] ,  cfg["where"], cfg["step"], path]),
+                    1.0 * value, timestp) for \
                         path, value in measure_dict.items() ]
             ) + '\n'
         last_excp = None
