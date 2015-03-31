@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pytho
 # -*- coding: utf-8 -*-
 
 from archery.bow import Daikyu as sdict
@@ -21,6 +21,8 @@ from simplejson import loads, dumps
 
 
 SENTINEL = object
+HOUR = 3600
+DAY = 24 * HOUR
 #### let's 
 #time_keeper = scheduler(time, sleep)
 if not len(sys.argv) >= 1:
@@ -88,13 +90,14 @@ class Backend(object):
     # list of reference counts per channel per lurkers
     ## requires that keys are unique for EVERY region (hence the use of stamper)
     _ref_counter = sdict()
+    atexit = None
 
     def _dump(self):
         ### nice to have also save the cache config ..... 
         return { ch : { cons : task_s.to_json() 
                 for cons, task_s in chan_ref.items() 
                 }
-                for ch, chan_ref in self._ref_counter.items()
+                for ch, chan_ref in Backend._ref_counter.items()
         }
     def _load(self, json_dict):
         ### nice to have also load the cache config ..... 
@@ -109,9 +112,10 @@ class Backend(object):
             self.db(channel)
 
     def register_atexit(self):
-        if not self.atexit:
+        if not Backend.atexit:
             atexit.register(lambda :self.save())
-            self.atexit = True
+            Backend.atexit = True
+
     def save(self, name = SENTINEL):
         """on successfull load/save register the atexit save"""
         if name is SENTINEL:
@@ -131,7 +135,6 @@ class Backend(object):
                     self._load(json.load(backup))
                     self.backup_name=name
                     self.sync()
-                    self.register_atexit()
                 except Exception as e:
                     logging.exception(e)
                     pass
@@ -155,7 +158,6 @@ class Backend(object):
 
     def __init__(self, **option):
         self.backup_name = option.get("name", 'garbage_collector')
-        self.atexit = None
         if Backend._db is None:
             Backend._db = sdict()
         if "cache_maker" not in option:
@@ -163,7 +165,6 @@ class Backend(object):
         self.cache_maker = option.get("cache_maker",
             lambda name: LRUCache(100000)
         )
-        self._ref_counter = Backend._ref_counter
 
     def register(self, channel_name, lurker):
         """register a lurker for channel"""
@@ -235,7 +236,7 @@ def dogpile_builder(name,dogpile_dict_config ={}, *a, **kw):
     from dogpile.cache.region import make_region
     DEFAULT_CONFIG =  {
             'dogpile.cache.dbm' : dict(
-                    expiration_time = 30,
+                    expiration_time = 2 * DAY,
                     arguments = { "filename":"./%s.dbm" % name }
                 )
         }
@@ -260,7 +261,7 @@ if '__main__' == __name__:
     task_storage = dogpile_builder('file_test')
     def see(task_storage):
         for cons, channel in product(("cons1", "cons2"), ("ch1","ch2")):
-            if cons in task_storage._ref_counter[channel]:
+            if cons in task_storage._ref_counter.get(channel, ()):
                 print "*" * 50
                 print "CHANNEL %s CONS %s" % (channel, cons)
                 print task_storage._ref_counter[channel][cons]
@@ -270,6 +271,7 @@ if '__main__' == __name__:
         for i in range(10):
             print "%d %r" % (i, task_storage.get("ch1", str(i)))
         task_storage.sync()
+        print "INITIAL VALUE"
         see(task_storage)
     except Exception as e:
         print "NO BACKUP (%r) loaded" % e
@@ -277,7 +279,8 @@ if '__main__' == __name__:
     del(task_storage)
     task_storage = dogpile_builder('file_test')
     task_storage.load()
-
+    task_storage.register_atexit()
+    print "EMPTY"
 
     task_storage.register("ch1", "cons1")
     task_storage.register("ch1", "cons2")
@@ -286,11 +289,13 @@ if '__main__' == __name__:
         task_storage.put("ch1",str(i) ,dict(channel="ch1", task=str(i), prod= 2 ))
         if i % 2:
             task_storage.put("ch2",str(i+10),dict(channel="ch2", task=str(i), prod= 1 ))
-
+    print task_storage._db
+    print Backend._ref_counter
     see(task_storage)
+    print "*" * 80
     ### some random dec ref
-    ch1_before_all_union = set(reduce(set.__or__,task_storage._ref_counter["ch1"].values()))
-    ch2_before_all_union = set(reduce(set.__or__,task_storage._ref_counter["ch2"].values()))
+    ch1_before_all_union = set(reduce(set.__or__,task_storage._ref_counter.get("ch1", dict()).values() or {}))
+    ch2_before_all_union = set(reduce(set.__or__,task_storage._ref_counter.get("ch2", {}).values() or {}))
 
 
 
@@ -308,6 +313,7 @@ if '__main__' == __name__:
     ch2_after_all_union = reduce(set.__or__,task_storage._ref_counter["ch2"].values())
 
     task_storage.save()
+    task_storage.load()
 
     def nb_ref(task_storage, channel, task_id):
        return { cons: int(task_id in gc) for cons,gc in task_storage._ref_counter[channel].items()}
