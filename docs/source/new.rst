@@ -34,6 +34,10 @@ and then
 Roadmap
 *******
 
+0.6.1
+    * introducing a garbage collector that can serialize buffer on disk 
+    * going tornado
+
 0.6
     Make a full functionnal testing framework so people can build their own topology and measure impacts
     of choices. 

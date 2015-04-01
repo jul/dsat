@@ -13,6 +13,7 @@ from simplejson import dumps
 from time import sleep, time
 from exceptions import KeyError
 import zmq
+from zmq.eventloop import ioloop, zmqstream
 
 """Function and class related to process control and messaging"""
 
@@ -125,6 +126,27 @@ def parse_mesg(null_joined_string):
             pid = pid,
         )
     
+def turbiner(args*, **option):
+    ioloop.install()
+    zmq_pool = args[:-1]
+    handler = arg[-1]
+    faster= option.get("faster")
+    def decapsulating_handler(msg_batch):
+        for msg in msg_batch:
+            try:
+                event = parse_mesg(msg)
+                if not faster:
+                    event["arg"] = serializer_for(event["serialization"])(event["arg"])
+                handler(event)
+
+            except Exception as e:
+                logging.exception(e)
+                logging.critical(e)
+                raise e
+    for zmq_socket in zmq_pool:
+        ss_stream = zmqstream.ZMQStream(zmq_soscket)
+        ss_stream.on_recv(decapsulating_handler)
+    ioloop.IOLoop.instance().start()
 
 def fast_parse_event(zmq_socket):
     """Takes a well configure socket and returns the state.
