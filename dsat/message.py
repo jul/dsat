@@ -126,9 +126,9 @@ def parse_mesg(null_joined_string):
             pid = pid,
         )
     
-def turbiner(args*, **option):
+def turbiner(*arg, **option):
     ioloop.install()
-    zmq_pool = args[:-1]
+    zmq_pool = arg[:-1]
     handler = arg[-1]
     faster= option.get("faster")
     def decapsulating_handler(msg_batch):
@@ -144,7 +144,7 @@ def turbiner(args*, **option):
                 logging.critical(e)
                 raise e
     for zmq_socket in zmq_pool:
-        ss_stream = zmqstream.ZMQStream(zmq_soscket)
+        ss_stream = zmqstream.ZMQStream(zmq_socket)
         ss_stream.on_recv(decapsulating_handler)
     ioloop.IOLoop.instance().start()
 
