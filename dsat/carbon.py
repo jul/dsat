@@ -45,7 +45,7 @@ def carbon_maker(**options):
                 ## TODO intercept only connection error
                 sock.close()
                 connect()
-                if not retry:
+                if not try_me:
                     raise("%r for %r" % (last_excp, cfg))
             try_me -= 1
         return not try_me

@@ -127,7 +127,6 @@ def parse_mesg(null_joined_string):
         )
     
 def turbiner(*arg, **option):
-    ioloop.install()
     zmq_pool = arg[:-1]
     handler = arg[-1]
     faster= option.get("faster")
@@ -142,11 +141,9 @@ def turbiner(*arg, **option):
             except Exception as e:
                 logging.exception(e)
                 logging.critical(e)
-                raise e
     for zmq_socket in zmq_pool:
         ss_stream = zmqstream.ZMQStream(zmq_socket)
         ss_stream.on_recv(decapsulating_handler)
-    ioloop.IOLoop.instance().start()
 
 def fast_parse_event(zmq_socket):
     """Takes a well configure socket and returns the state.
