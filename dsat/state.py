@@ -25,8 +25,8 @@ import signal
 import socket
 
 from threading import Timer
-#import zmq.green as zmq
-import zmq
+import zmq.green as zmq
+#import zmq
 from zmq.utils import jsonapi
 import json
 from time import gmtime

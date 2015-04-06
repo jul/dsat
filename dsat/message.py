@@ -12,7 +12,7 @@ from types import StringType
 from simplejson import dumps
 from time import sleep, time
 from exceptions import KeyError
-import zmq
+import zmq.green as zmq
 from zmq.eventloop import ioloop, zmqstream
 
 """Function and class related to process control and messaging"""
