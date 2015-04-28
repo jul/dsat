@@ -462,8 +462,18 @@ dst, address, cnx))
 
             cnx = context.socket(zmq.PUB)
             cnx.bind(CONFIG["cnx"]["PUB_tracker_any"]%CONFIG)
+            cnx = context.socket(zmq.SUB)
+            cnx.bind(CONFIG["cnx"]["SUB_any_tracker"] % CONFIG)
+            cnx.setsockopt(zmq.SUBSCRIBE, "")
+            cnx_list["tracker_rep"] = cnx
+
             
         else:
+            cnx = context.socket(zmq.PUB)
+            
+            cnx.connect(CONFIG["cnx"]["PUB_any_tracker"] % CONFIG)
+            cnx_list["tracker_rep"] = cnx
+
             cnx = context.socket(zmq.PUSH)
             print "[%s] =>tracker I will send you my states"  % here
             cnx.connect(CONFIG["cnx"]["PUSH_any_tracker"] % CONFIG)

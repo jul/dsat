@@ -163,8 +163,10 @@ class Backend(object):
         if "cache_maker" not in option:
             from repoze.lru import LRUCache
         self.cache_maker = option.get("cache_maker",
-            lambda name: LRUCache(100000)
+            lambda name: LRUCache(1000000)
         )
+        self.option = option
+        self.backend_has_expiry_time = option.get("backend_has_expiry_time", True)
 
     def register(self, channel_name, lurker):
         """register a lurker for channel"""
@@ -219,10 +221,12 @@ class Backend(object):
         return Backend._db.get(channel_name, {}).get(event_id)
 
     def free(self, channel_name, event_id):
-        Backend._db[channel_name].invalidate(event_id)
+        if self.backend_has_expiry_time:
+            Backend._db[channel_name].invalidate(event_id)
 
     def drop(self, db):
-        del Backend._db[db]
+        #del Backend._db[db]
+        pass
 
 def dogpile_builder(name,dogpile_dict_config ={}, *a, **kw):
     """map entries of input to buid region according to dogpile

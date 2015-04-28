@@ -11,7 +11,7 @@ import readline
 from readline import write_history_file, read_history_file
 import zmq
 from simplejson import dumps, load, loads
-from dsat.message import send_vector, fast_parse_vector
+from dsat.message import send_vector, fast_parse_vector, extract_vector_from_dict
 from dsat.state import _f
 import dsat
 
@@ -54,15 +54,21 @@ print "address: %r" % _to
 print "PATTERN: %r" % _mode
 print _boc
 
+print "message template is: %s" % dumps(extract_vector_from_dict({}), indent=4)
+
+abort = False
 recv = False
 message=_what
-while message:
+while message and not abort:
     if "q" == message:
         break
     if "r" == _what:
         recv=True
+    elif _what:
+        message = _what
+        abort = True
     else:
-        message = raw_input("%s >" % _to)
+        message = "".join(iter(lambda :raw_input("%s >" % _to), "ç"))
     try:
         if recv:
             cpt = 0
