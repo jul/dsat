@@ -42,7 +42,7 @@ def lookout(cfg):
                 return True
         except Exception as e:
             print >>stderr, "Missed a beacon in the veil of the night %r" % e
-            return False
+    return False
 
 
     
