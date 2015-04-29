@@ -41,7 +41,8 @@ def lookout(cfg):
             if data == MSG_BEACON:
                 return True
         except Exception as e:
-            print >>stderr, "Missed a beacon in the veil of the night %r" % e
+            #print >>stderr, "Missed a beacon in the veil of the night %r" % e
+            print "."
     return False
 
 
