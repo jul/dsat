@@ -34,7 +34,6 @@ def lookout(cfg):
     server_address = ( str(cfg["host"]), int(cfg["port"]))
     with closing(socket(AF_INET, SOCK_STREAM)) as tcp_sock:
         try:
-            atexit.register(tcp_sock.close)
             tcp_sock.settimeout(acceptable_latency)
             tcp_sock.connect(server_address)
             data = tcp_sock.recv(SO_BEACON)
