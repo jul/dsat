@@ -64,6 +64,48 @@ class ToxicSet(set):
 
 
 #CNX = get_connection(CONFIG, LOCAL_INFO)
+import os
+import atexit
+from dogpile.cache.region import make_region
+from simplejson import load, dump
+class SerializedQueue(object):
+    def __init__(self, **option):
+        self.name = option["name"]
+        self.load()
+        self.cache = make_region(
+            ).configure( 'dogpile.cache.dbm',
+                ### 2 days
+                expiration_time = 3600 * 7 * 24,
+                arguments = {
+                    "filename":"./%s.dbm" % option["name"]
+                })
+        atexit.register(lambda: self.save())
+    def pop(self):
+        task_id = self._queue.pop()
+        vector = self.cache.get(str(task_id))
+        return task_id, vector
+
+    def append(self, task_id, vector):
+        self._queue.append(str(task_id))
+        self.cache.set(str(task_id), vector)
+
+    def insert(self, task_id, vector):
+        self._queue.appendleft(str(task_id))
+        self.cache.set(str(task_id), vector)
+
+    def load(self):
+        if not os.path.exists(self.name):
+            self._queue = deque()
+            self.save()
+        else:
+            try:
+                self._queue = deque(map(str,load(open("%(name)s" % self.__dict__ ))))
+            except Exception as e:
+                self._queue = deque()
+
+    def save(self):
+        dump(list(self._queue), open("%(name)s" % self.__dict__, "w"))
+
 
 
 class Backend(object):
