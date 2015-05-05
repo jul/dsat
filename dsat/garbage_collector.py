@@ -67,6 +67,7 @@ class ToxicSet(set):
 import os
 import atexit
 from dogpile.cache.region import make_region
+from collections import deque
 from simplejson import load, dump
 class SerializedQueue(object):
     def __init__(self, **option):
@@ -105,6 +106,9 @@ class SerializedQueue(object):
 
     def save(self):
         dump(list(self._queue), open("%(name)s" % self.__dict__, "w"))
+
+    def __len__(self):
+        return len(self._queue)
 
 
 

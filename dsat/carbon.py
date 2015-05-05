@@ -10,7 +10,14 @@ DEF_CFG=dict(
     )
 )
 
+
+
 def carbon_maker(**options):
+    """A context manager here could be nice.
+    Or at least proposing a context manager for people not using this too much
+    (hint I don't know the impact of closing/opening sockets all the time
+    on performance/memory leak... But I am pretty sure it would be more
+    least surprise principle effect)"""
     sock= socket.socket()
     cfg = DEF_CFG.copy()
     cfg.update(options)
@@ -19,17 +26,11 @@ def carbon_maker(**options):
         try:
             sock.connect((cfg['carbon']['host'], cfg['carbon']['port']))
         except Exception as e:
-            if cfg.get("living_dangerously", True):
-                print "Exception %r caught, desactivating carbon" % e
-                print "returning dummy function instead of sent"
-                return lambda *a, **kw: True
-            else:
-                raise e
+            pass
     connect()
     def send(measure_dict):
         if not measure_dict:
             return None
-        try_me = 1
         timestp = time()
         # https://github.com/graphite-project/carbon/blob/master/lib/carbon/protocols.py#L77
         message = '\n'.join(["%s %.15f %f" % (
@@ -37,18 +38,15 @@ def carbon_maker(**options):
                     1.0 * value, timestp) for \
                         path, value in measure_dict.items() ]
             ) + '\n'
-        last_excp = None
-        while try_me:
+        try:
+            sock.send(message)
+        except Exception as last_excp:
+            ## TODO intercept only connection error
             try:
-                sock.send(message)
-            except Exception as last_excp:
-                ## TODO intercept only connection error
                 sock.close()
-                connect()
-                if not try_me:
-                    raise("%r for %r" % (last_excp, cfg))
-            try_me -= 1
-        return not try_me
+            except:
+                pass
+            connect()
     return send
 
 
