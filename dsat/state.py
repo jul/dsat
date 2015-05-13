@@ -158,6 +158,7 @@ class Connector(object):
             }
         })
         host_name = socket.gethostname()
+        print "HOSTNAME %s" % host_name
         LOCAL_INFO = dict(
             where = CONFIG.get("where",
                 socket.gethostbyaddr(host_name)[0]
