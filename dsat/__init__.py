@@ -7,11 +7,14 @@ Temp changlelog for me to remember
 =====
     adding serialized queue an asbtraction for a serialized queue
 
+0.6.3
+=====
+    better carbon handling
 
 """
 
 __short_version__ = "0.6"
-__version__ = __short_version__ + ".2"
+__version__ = __short_version__ + ".3"
 
 
 
