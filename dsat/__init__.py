@@ -11,10 +11,17 @@ Temp changlelog for me to remember
 =====
     better carbon handling
 
+0.6.4
+=====
+    I should clean my home dir
+
+0.6.5
+=====
+    Changing the way connection are made. documentation for this is next version.
 """
 
 __short_version__ = "0.6"
-__version__ = __short_version__ + ".3"
+__version__ = __short_version__ + ".5"
 
 
 

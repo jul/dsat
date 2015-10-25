@@ -178,7 +178,10 @@ def parse_event(zmq_socket):
         Commodity variant if you need to access the args sent in the message
     """
     to_return = fast_parse_event(zmq_socket)
-    to_return["arg"] = serializer_for(to_return["serialization"])(to_return["arg"])
+    try:
+        to_return["arg"] = serializer_for(to_return["serialization"])(to_return["arg"])
+    except Exception as e:
+        raise Exception("Could not serialize %r" % to_return)
     
     return to_return
 

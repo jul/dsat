@@ -43,6 +43,9 @@ Roadmap
     of choices. 
     When it works for me (tm) switch to beta.
 
+0.6.4
+    connector finally usable    
+
 TODO limitations
 ****************
 
